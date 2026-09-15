@@ -40,7 +40,7 @@ const REPORT_TYPES = [
   // { key: "prep_english_45",   label: "הכנה למבחן באנגלית 4/5 יח'", group: G.PREP, hours: 30, unit: "כיתות",   unitOne: "כיתה",  oncePerYear: true },
   { key: "prep_ext_3",           label: "הכנה למבחני חוץ 3 יח'",      group: G.PREP, hours: 15, unit: "כיתות",   unitOne: "כיתה",  oncePerYear: true },
   { key: "subject_coordination", label: "ריכוז מקצוע",                group: G.PREP, hours: 15, unit: "מקצועות", unitOne: "מקצוע", oncePerYear: true },
-  { key: "prep_late_work",       label: "הכנת עבודת איחורית",         group: G.PREP, hours: 3,  unit: "עבודות",  unitOne: "עבודה" },
+  { key: "prep_late_work",       label: "הכנת עבודת איחורית",         group: G.PREP, hours: 4,  unit: "עבודות",  unitOne: "עבודה" },
 
   /* ---- בדיקת מבחנים: שעה אחת = X מבחנים ---- */
   // { key: "entry_math",        label: "בדיקת מבחני כניסה – מתמטיקה", group: G.CHECK, perHour: 7,  unit: "מבחנים", unitOne: "מבחן" },

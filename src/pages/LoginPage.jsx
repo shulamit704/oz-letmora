@@ -20,9 +20,12 @@ function LoginPage({ onLogin, onDemo, loading, loadError }) {
     }
     setBusy(true);
     setError("");
-    const ok = await onLogin(password.trim());
+    // onLogin מחזיר true בהצלחה, או מחרוזת שגיאה כשהכשל אינו בסיסמה עצמה
+    // (למשל כשאין קשר עם הגיליון ואי אפשר לאמת כלל).
+    const res = await onLogin(password.trim());
     setBusy(false);
-    if (!ok) setError("הסיסמה אינה נכונה.");
+    if (res === true) return;
+    setError(typeof res === "string" && res ? res : "הסיסמה אינה נכונה.");
   };
 
   return (

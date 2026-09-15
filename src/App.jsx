@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { WEB_APP_URL, apiGetAll, apiPost, isConfigured, mergeServerData } from "./lib/api.js";
 import { ADMIN_PASSWORD, SHOW_DEMO_ENTRY, demoTeachers } from "./lib/demoData.js";
+import { clearSession, readCachedTeachers, readSession, writeCachedTeachers, writeSession } from "./lib/storage.js";
 import { round2 } from "./lib/utils.js";
 import { LoginPage } from "./pages/LoginPage.jsx";
 import { AdminDashboard } from "./pages/admin/AdminDashboard.jsx";
@@ -28,10 +30,22 @@ export default function App() {
   const [demoOverride, setDemoOverride] = useState(false);
   const configured = isConfigured() && !demoOverride;
 
-  const [teachers, setTeachers] = useState(isConfigured() ? [] : demoTeachers);
+  /* פתיחה מהמטמון המקומי: המסך מצויר מיד מהנתונים האחרונים שנשמרו, והרענון
+     מהגיליון רץ ברקע ומחליף אותם. אין כאן סיסמאות — המטמון נשמר בלעדיהן
+     (ראו lib/storage.js), ולכן הוא משמש לתצוגה בלבד ולא להתחברות. */
+  // המטמון נקרא פעם אחת בעליית הרכיב — ממנו באים גם הנתונים וגם מועד שמירתם.
+  const [cached] = useState(() => (isConfigured() ? readCachedTeachers() : null));
+
+  const [teachers, setTeachers] = useState(() =>
+    isConfigured() ? cached?.teachers || [] : demoTeachers
+  );
   const [loading, setLoading] = useState(isConfigured());
   const [loadError, setLoadError] = useState("");
-  const [session, setSession] = useState(null); // { role:'admin' } | { role:'teacher', teacherId }
+  /* מועד הסנכרון האחרון מול הגיליון. בפתיחה הוא מגיע מהמטמון, ולכן החיווי
+     במסך המורה אומר את האמת: מוצגים נתונים מלפני זמן מה, לא מהרגע הזה. */
+  const [lastSyncedAt, setLastSyncedAt] = useState(() => cached?.savedAt || null);
+  // { role:'admin' } | { role:'teacher', teacherId } — משוחזר מהלשונית הנוכחית בלבד.
+  const [session, setSession] = useState(() => (isConfigured() ? readSession() : null));
   const [writeLog, setWriteLog] = useState([]); // יומן פעולות הכתיבה לגיליון
   const [syncError, setSyncError] = useState(""); // כשל בשמירה שקרתה ברקע
   const loadRef = useRef(null);                   // הטעינה שרצה כרגע מהגיליון
@@ -83,6 +97,7 @@ export default function App() {
         const data = await apiGetAll();
         const merged = mergeServerData(data);
         setTeachers(merged);
+        setLastSyncedAt(Date.now());
         return merged;
       } catch (e) {
         setLoadError("לא ניתן להגיע לגיליון. ודאו ש־WEB_APP_URL נכון וש־Web App פורסם להרשאת \"כל אחד\".");
@@ -97,12 +112,55 @@ export default function App() {
 
   useEffect(() => { refetch(); /* eslint-disable-next-line */ }, []);
 
-  // הזיהוי נעשה לפי הסיסמה בלבד — אין שדה שם משתמש. הסיסמה היא שקובעת מי
-  // נכנס, ולכן היא חייבת להיות ייחודית לכל מורה.
-  //
-  // אין חסימה של הטופס בזמן הטעינה: המורה מקלידה מיד, וברוב המקרים הנתונים
-  // כבר הגיעו עד שהיא מסיימת. אם לא — ממתינים כאן לטעינה שכבר רצה ברקע,
-  // במקום להשאיר אותה מול כפתור מושבת.
+  /* שמירת המטמון. נכתב גם אחרי עדכון אופטימי, כך שרענון מיד אחרי דיווח
+     מראה את המספר החדש ולא את הישן. בזמן טעינה אין כתיבה — אחרת הרשימה
+     הריקה שלפני התשובה הייתה דורסת מטמון תקין. */
+  useEffect(() => {
+    if (!configured || loading) return;
+    writeCachedTeachers(teachers);
+  }, [teachers, configured, loading]);
+
+  // שמירת הסשן. נתוני הדגמה אינם נשמרים — אסור שרענון יחזיר אותם כאילו
+  // היו אמיתיים.
+  useEffect(() => {
+    if (demoOverride) return;
+    writeSession(session);
+  }, [session, demoOverride]);
+
+  /* סשן משוחזר שאין לו מורה ברשימה — למשל אחרי שהמורה נמחקה מהגיליון.
+     מוציאים אותה למסך הכניסה, אבל רק אחרי שהטעינה הסתיימה: בזמן הטעינה
+     הרשימה עדיין עשויה להיות ריקה, ויציאה כאן הייתה שולחת להתחברות מיותרת.
+     eslint-disable — handleLogout מוגדר בהמשך הקומפוננטה ואינו משתנה. */
+  useEffect(() => {
+    if (loading || !session || session.role !== "teacher") return;
+    if (teachers.some((t) => t.id === session.teacherId)) return;
+    handleLogout();
+    /* eslint-disable-next-line */
+  }, [loading, session, teachers]);
+
+  /* סך השעות שהגיליון מחזיר הוא מקור האמת: הוא מחושב מחדש מכל שורות
+     ההיסטוריה, ולכן הוא נכון גם כששתי מורות דיווחו באותו רגע. החישוב
+     המקומי נשאר רק כגיבוי, למקרה שהשרת לא שלח את השדה. */
+  const syncAccumulated = (teacherId, value) => {
+    const n = Number(value);
+    if (value == null || !Number.isFinite(n)) return;
+    setTeachers((prev) =>
+      prev.map((t) => (t.id === teacherId ? { ...t, accumulatedHours: round2(n) } : t))
+    );
+  };
+
+  /* הזיהוי נעשה לפי הסיסמה בלבד — אין שדה שם משתמש. הסיסמה היא שקובעת מי
+     נכנס, ולכן היא חייבת להיות ייחודית לכל מורה.
+
+     אין חסימה של הטופס בזמן הטעינה: המורה מקלידה מיד, וברוב המקרים הנתונים
+     כבר הגיעו עד שהיא מסיימת. אם לא — ממתינים כאן לטעינה שכבר רצה ברקע,
+     במקום להשאיר אותה מול כפתור מושבת.
+
+     ⚠️ ההתחברות נסמכת אך ורק על נתונים טריים מהשרת. במטמון המקומי אין
+     סיסמאות כלל, ולכן אם הגיליון לא נענה אי אפשר לאמת — ובמקרה כזה מוחזרת
+     הודעת תקלה מפורשת, ולא "הסיסמה אינה נכונה" שרק תבלבל.
+
+     הערך המוחזר: true בהצלחה, או מחרוזת השגיאה להצגה. */
   const handleLogin = async (password) => {
     const p = String(password).trim();
 
@@ -113,8 +171,14 @@ export default function App() {
 
     let list = teachers;
     if (configured) {
-      const loaded = await (loadRef.current || refetch());
-      if (loaded) list = loaded;
+      // אם הטעינה שרצה ברקע נכשלה, ננסה שוב פעם אחת — לחיצה על "כניסה" היא
+      // בדיוק הרגע שבו כדאי לנסות, ולא להשאיר את המורה תקועה עד רענון ידני.
+      let loaded = await (loadRef.current || refetch());
+      if (!loaded) loaded = await refetch();
+      if (!loaded) {
+        return "לא ניתן להתחבר כרגע — אין קשר עם הגיליון. יש לנסות שוב בעוד רגע.";
+      }
+      list = loaded;
     }
 
     const match = list.find((t) => String(t.password).trim() === p);
@@ -134,17 +198,23 @@ export default function App() {
     setLoadError("");
     setLoading(false);
     setSyncError("");
+    clearSession(); // סשן ההדגמה אינו נשמר — רענון חייב להחזיר למסך הכניסה.
     setSession({ role: "admin" });
   };
 
+  // התנתקות מהכפתור שבסרגל העליון (layout/Topbar.jsx). מנקה את הסשן השמור,
+  // כך שרענון או מורה אחרת באותו מחשב יגיעו למסך הכניסה.
   const handleLogout = () => {
+    clearSession();
     setSession(null);
     // יציאה מההדגמה מחזירה את הנתונים האמיתיים מהגיליון.
     if (demoOverride) {
       setDemoOverride(false);
       setWriteLog([]);
       if (isConfigured()) {
-        setTeachers([]);
+        const back = readCachedTeachers();
+        setTeachers(back?.teachers || []);
+        setLastSyncedAt(back?.savedAt || null);
         refetch(true);
       }
     }
@@ -306,6 +376,8 @@ export default function App() {
               : t
           )
         );
+        // ומיישרים את הסכום לפי מה שהגיליון חישב בפועל.
+        syncAccumulated(teacherId, data.accumulatedHours);
         pushLog({ action: "updateHours", payload: { teacherId, hours, date, reason }, description: `נוספה שורה לגיליון History (id ${data.record.id}); accumulatedHours של מורה ${teacherId} עודכן ל־${newAcc}` });
       } catch (e) {
         // נסיגה מלאה: גם הרישום וגם השעות שנוספו לסכום.
@@ -361,8 +433,9 @@ export default function App() {
 
     (async () => {
       try {
-        await apiPost("editHours", { teacherId, id: recordId, hours, date, reason });
+        const data = await apiPost("editHours", { teacherId, id: recordId, hours, date, reason });
         patchRecord({ saving: false }, 0);
+        syncAccumulated(teacherId, data.accumulatedHours);
         pushLog({ action: "editHours", payload: { teacherId, id: recordId, hours, date, reason }, description: `עודכנה שורה ${recordId} בגיליון History; accumulatedHours של מורה ${teacherId} שונה ב־${delta}` });
       } catch (e) {
         patchRecord({ hours: before.hours, reason: before.reason, date: before.date, saving: false }, -delta);
@@ -373,13 +446,17 @@ export default function App() {
     return { ok: true };
   };
 
-  /* מחיקת רישום. השעות נגרעות מהסכום הנצבר, ואם המחיקה נכשלה בגיליון —
-     הרישום חוזר למסך במלואו. */
+  /* מחיקת רישום. כמו בדיווח ובעריכה — הרישום יורד מהמסך מיד, והמחיקה רצה
+     ברקע. אם הגיליון סירב, הרישום חוזר למקומו המדויק ברשימה והשעות מוחזרות
+     לסכום, בליווי הודעה. */
   const handleDeleteHours = async (teacherId, recordId) => {
     const owner = teachers.find((t) => t.id === teacherId);
     const gone = owner && owner.history.find((h) => h.id === recordId);
     if (!gone) return { ok: false, error: "הרישום לא נמצא." };
     if (gone.pending) return { ok: false, error: "הרישום עדיין נשמר בגיליון. יש להמתין רגע ולנסות שוב." };
+
+    // מיקומו ברשימה נשמר מראש, כדי שנסיגה תחזיר אותו בדיוק לשם ולא לראש.
+    const goneIndex = owner.history.findIndex((h) => h.id === recordId);
 
     const removeLocal = () =>
       setTeachers((prev) =>
@@ -394,27 +471,46 @@ export default function App() {
         )
       );
 
+    const restoreLocal = () =>
+      setTeachers((prev) =>
+        prev.map((t) => {
+          if (t.id !== teacherId) return t;
+          const history = [...t.history];
+          history.splice(Math.min(goneIndex, history.length), 0, gone);
+          return { ...t, accumulatedHours: round2(t.accumulatedHours + gone.hours), history };
+        })
+      );
+
+    const log = () =>
+      pushLog({ action: "deleteHours", payload: { teacherId, id: recordId }, description: `נמחקה שורה ${recordId} מגיליון History; ${gone.hours} שעות נגרעו מהסכום של מורה ${teacherId}` });
+
     if (!configured) {
       removeLocal();
-      pushLog({ action: "deleteHours", payload: { teacherId, id: recordId }, description: `נמחקה שורה ${recordId} מגיליון History; ${gone.hours} שעות נגרעו מהסכום של מורה ${teacherId}` });
+      log();
       return { ok: true };
     }
 
-    try {
-      await apiPost("deleteHours", { teacherId, id: recordId });
-      removeLocal();
-      pushLog({ action: "deleteHours", payload: { teacherId, id: recordId }, description: `נמחקה שורה ${recordId} מגיליון History; ${gone.hours} שעות נגרעו מהסכום של מורה ${teacherId}` });
-      return { ok: true };
-    } catch (e) {
-      // "לא נמצא" פירושו שהשורה כבר איננה בגיליון — מסירים מהתצוגה ומסנכרנים.
-      if (/not found/i.test(e.message || "")) {
-        removeLocal();
-        refetch();
-        return { ok: true };
+    removeLocal();
+
+    // המחיקה ממשיכה אחרי שחלון האישור כבר נסגר.
+    (async () => {
+      try {
+        const data = await apiPost("deleteHours", { teacherId, id: recordId });
+        syncAccumulated(teacherId, data.accumulatedHours);
+        log();
+      } catch (e) {
+        // "לא נמצא" פירושו שהשורה כבר איננה בגיליון — ההסרה מהמסך נכונה,
+        // ורק מסנכרנים כדי לוודא שהסכום תואם.
+        if (/not found/i.test(e.message || "")) {
+          refetch();
+          return;
+        }
+        restoreLocal();
+        setSyncError(`מחיקת הרישום (${gone.reason}) לא נשמרה בגיליון: ${e.message}. הרישום הוחזר לרשימה.`);
       }
-      // המחיקה נכשלה — דבר לא הוסר מהמסך, וההודעה מוצגת בתוך חלון האישור.
-      return { ok: false, error: e.message };
-    }
+    })();
+
+    return { ok: true };
   };
 
   const toast = <SyncErrorToast message={syncError} onClose={() => setSyncError("")} />;
@@ -447,13 +543,24 @@ export default function App() {
 
   const teacher = teachers.find((t) => t.id === session.teacherId);
   if (!teacher) {
-    handleLogout();
-    return null;
+    /* סשן משוחזר שהנתונים שלו עדיין בדרך (למשל מטמון ריק אחרי ניקוי
+       הדפדפן) — מציגים טעינה. רק כשהטעינה הסתיימה והמורה עדיין איננה
+       ברשימה, ההוצאה מתבצעת — באפקט שלמטה, ולא באמצע הרינדור. */
+    return (
+      <>
+        <div dir="rtl" className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-400">
+          <Loader2 className="w-8 h-8 animate-spin mb-3" />
+          <p className="text-sm">טוען מהגיליון…</p>
+        </div>
+        {toast}
+      </>
+    );
   }
   return (
     <>
       <TeacherDashboard
         teacher={teacher} demoMode={!configured} onLogout={handleLogout}
+        loading={loading} loadError={loadError} lastSyncedAt={lastSyncedAt} onRetry={refetch}
         onAddHours={handleUpdateHours}
         onEditHours={handleEditHours}
         onDeleteHours={handleDeleteHours}

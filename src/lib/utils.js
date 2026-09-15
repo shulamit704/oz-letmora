@@ -16,6 +16,19 @@ const clampPct = (done, total) => {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+/* מועד הסנכרון האחרון מול הגיליון, לחיווי "עודכן לאחרונה".
+   באותו יום מוצגת השעה בלבד — זה המידע שמעניין. ביום אחר מוקדם לו התאריך,
+   כדי שלא ייראה כאילו העדכון היה לפני דקות. */
+const formatSyncTime = (ts) => {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return "";
+  const time = d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  const sameDay = d.toDateString() === new Date().toDateString();
+  if (sameDay) return time;
+  return `${d.toLocaleDateString("he-IL", { day: "numeric", month: "short" })}, ${time}`;
+};
+
 const round2 = (n) => Math.round(n * 100) / 100;
 
 /* ------------------------- הורדת דוח כקובץ CSV -------------------------- */
@@ -44,4 +57,4 @@ function downloadCSV(fileName, rows) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export { cn, formatDate, clampPct, todayISO, round2, downloadCSV };
+export { cn, formatDate, formatSyncTime, clampPct, todayISO, round2, downloadCSV };

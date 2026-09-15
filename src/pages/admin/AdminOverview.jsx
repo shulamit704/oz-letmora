@@ -39,8 +39,12 @@ function AdminOverview({ teachers, onOpenTeachers }) {
     return { total, totalLogged: round2(totalLogged), completed, avg };
   }, [teachers]);
 
-  const ranked = [...teachers].sort(
-    (a, b) => clampPct(b.accumulatedHours, b.requiredHours) - clampPct(a.accumulatedHours, a.requiredHours)
+  const ranked = useMemo(
+    () =>
+      [...teachers].sort(
+        (a, b) => clampPct(b.accumulatedHours, b.requiredHours) - clampPct(a.accumulatedHours, a.requiredHours)
+      ),
+    [teachers]
   );
 
   return (

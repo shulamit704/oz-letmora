@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { RefreshCw, Database, FileSpreadsheet, Download } from "lucide-react";
 import { WEB_APP_URL } from "../../lib/api.js";
 import { cn, downloadCSV, round2, todayISO } from "../../lib/utils.js";
@@ -43,10 +43,22 @@ function DatabaseView({ teachers, writeLog, demoMode }) {
   const [tab, setTab] = useState("teachers");
   const teacherCols = ["id", "name", "password", "frontalHours", "requiredHours", "accumulatedHours"];
   const historyCols = ["id", "teacherId", "date", "hours", "reason"];
-  const teacherRows = teachers.map((t) => [t.id, t.name, t.password, t.frontalHours ?? "", t.requiredHours, round2(t.accumulatedHours)]);
-  const historyRows = teachers
-    .flatMap((t) => t.history.map((h) => [h.id, h.teacherId, h.date, h.hours, h.reason]))
-    .sort((a, b) => a[0] - b[0]);
+  // בניית הטבלאות עוברת על כל ההיסטוריה וממיינת אותה. ממוזכר, כדי שמעבר
+  // בין הלשוניות או הקלדה במסך אחר לא יחשבו אותה מחדש.
+  const teacherRows = useMemo(
+    () =>
+      teachers.map((t) => [
+        t.id, t.name, t.password ?? "", t.frontalHours ?? "", t.requiredHours, round2(t.accumulatedHours),
+      ]),
+    [teachers]
+  );
+  const historyRows = useMemo(
+    () =>
+      teachers
+        .flatMap((t) => (t.history || []).map((h) => [h.id, h.teacherId, h.date, h.hours, h.reason]))
+        .sort((a, b) => a[0] - b[0]),
+    [teachers]
+  );
 
   return (
     <div className="space-y-6">

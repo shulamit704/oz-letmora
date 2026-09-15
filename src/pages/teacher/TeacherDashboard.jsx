@@ -1,17 +1,17 @@
 import { useState } from "react";
-import { Plus, Clock, Award } from "lucide-react";
+import { Plus, Clock, Award, RefreshCw } from "lucide-react";
 import { HistoryTable } from "../../history/HistoryTable.jsx";
 import { Topbar } from "../../layout/Topbar.jsx";
-import { clampPct, round2 } from "../../lib/utils.js";
+import { clampPct, cn, formatSyncTime, round2 } from "../../lib/utils.js";
 import { UpdateHoursModal } from "../admin/modals/UpdateHoursModal.jsx";
 import { HoursBreakdown } from "./HoursBreakdown.jsx";
 import { Badge } from "../../ui/Badge.jsx";
-import { DemoBanner } from "../../ui/Banners.jsx";
+import { DemoBanner, ErrorBanner } from "../../ui/Banners.jsx";
 import { Button } from "../../ui/Button.jsx";
 import { Card } from "../../ui/Card.jsx";
 import { ProgressRing } from "../../ui/Progress.jsx";
 
-function TeacherDashboard({ teacher, demoMode, onLogout, onAddHours, onEditHours, onDeleteHours }) {
+function TeacherDashboard({ teacher, demoMode, loading, loadError, lastSyncedAt, onRetry, onLogout, onAddHours, onEditHours, onDeleteHours }) {
   const [addOpen, setAddOpen] = useState(false);
   const pct = clampPct(teacher.accumulatedHours, teacher.requiredHours);
   const remaining = round2(Math.max(0, teacher.requiredHours - teacher.accumulatedHours));
@@ -33,9 +33,30 @@ function TeacherDashboard({ teacher, demoMode, onLogout, onAddHours, onEditHours
           <p className="text-base text-slate-500 mt-1.5">
             לפניך נתוני המשרה לשנת תשפ״ו.
           </p>
+
+          {/* מתי הנתונים האלה נלקחו מהגיליון. בפתיחה מוצג עותק מקומי מהכניסה
+              הקודמת, ובלי החיווי הזה אין דרך לדעת שהמספרים אינם מהרגע הזה. */}
+          {!demoMode && (loading || lastSyncedAt) && (
+            <p className={cn("flex items-center gap-1.5 text-xs mt-2", loadError ? "text-amber-600" : "text-slate-400")}>
+              {loading ? (
+                <><RefreshCw className="w-3 h-3 animate-spin" /> מתעדכן מהגיליון…</>
+              ) : (
+                <><RefreshCw className="w-3 h-3" /> עודכן לאחרונה ב־{formatSyncTime(lastSyncedAt)}</>
+              )}
+            </p>
+          )}
         </div>
 
         {demoMode && <DemoBanner />}
+
+        {/* נוסח למורה, ולא הודעת התקלה הטכנית שמיועדת למנהלת המערכת. */}
+        {!demoMode && loadError && (
+          <ErrorBanner
+            message="אין כרגע קשר עם הגיליון. המספרים שלפנייך הם מהעדכון האחרון, ודיווח חדש לא יישמר עד שהקשר יחזור."
+            onRetry={onRetry}
+            retrying={loading}
+          />
+        )}
 
         <HoursBreakdown teacher={teacher} />
 

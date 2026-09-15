@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, CheckCircle2, Search, History, PencilLine, FileSpreadsheet, Copy, Check, Trash2, Download, FileDown, SlidersHorizontal } from "lucide-react";
 import { printReport } from "../../lib/report.js";
 import { clampPct, downloadCSV, round2, todayISO } from "../../lib/utils.js";
@@ -16,6 +16,13 @@ function PasswordCell({ password }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  /* בטעינה מהמטמון המקומי אין סיסמאות — הן אינן נשמרות בדפדפן. הן מופיעות
+     ברגע שהנתונים הטריים מהגיליון מגיעים, שנייה־שתיים אחר כך. */
+  if (!password) {
+    return <span className="text-xs text-slate-300">טוען…</span>;
+  }
+
   return (
     <div className="inline-flex items-center gap-1.5">
       <code dir="ltr" className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">{password}</code>
@@ -32,7 +39,14 @@ function PasswordCell({ password }) {
 
 function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpdate, onDelete, onOpenHistory }) {
   const [query, setQuery] = useState("");
-  const filtered = teachers.filter((t) => t.name.toLowerCase().includes(query.toLowerCase()));
+
+  // הסינון רץ בכל הקשה בתיבת החיפוש — ממוזכר כדי שההקלדה תישאר חלקה גם
+  // ברשימה ארוכה.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return teachers;
+    return teachers.filter((t) => t.name.toLowerCase().includes(q));
+  }, [teachers, query]);
 
   // דוח מרוכז: כל רישומי השעות של כל המורות, ממוין לפי שם ואז לפי תאריך.
   const exportAll = () => {

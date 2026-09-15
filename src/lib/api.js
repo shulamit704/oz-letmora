@@ -28,24 +28,47 @@ async function parseResponse(res, action) {
   }
 }
 
+/* מדידת זמני קריאה — בפיתוח בלבד.
+   import.meta.env.DEV מוחלף בקבוע בזמן הבנייה, ולכן כל הבלוק הזה נמחק
+   מהחבילה לייצור ואינו עולה למורות דבר. */
+const DEV = import.meta.env.DEV;
+
+async function timed(label, run) {
+  if (!DEV) return run();
+  const t0 = performance.now();
+  let status = "ok";
+  try {
+    return await run();
+  } catch (e) {
+    status = "נכשל";
+    throw e;
+  } finally {
+    console.log(`[api] ${label} — ${Math.round(performance.now() - t0)}ms (${status})`);
+  }
+}
+
 async function apiGetAll() {
-  const res = await fetch(WEB_APP_URL, { method: "GET" });
-  const data = await parseResponse(res);
-  if (!data.ok) throw new Error(data.error || "טעינת הנתונים נכשלה");
-  return data;
+  return timed("GET כל הנתונים", async () => {
+    const res = await fetch(WEB_APP_URL, { method: "GET" });
+    const data = await parseResponse(res);
+    if (!data.ok) throw new Error(data.error || "טעינת הנתונים נכשלה");
+    return data;
+  });
 }
 
 async function apiPost(action, payload) {
-  const res = await fetch(WEB_APP_URL, {
-    method: "POST",
-    // text/plain שומר על "בקשה פשוטה" ומונע preflight של CORS ש־Apps Script
-    // אינו עונה עליו. גוף הבקשה עדיין JSON.
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ action, payload }),
+  return timed(`POST ${action}`, async () => {
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      // text/plain שומר על "בקשה פשוטה" ומונע preflight של CORS ש־Apps Script
+      // אינו עונה עליו. גוף הבקשה עדיין JSON.
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, payload }),
+    });
+    const data = await parseResponse(res, action);
+    if (!data.ok) throw new Error(data.error || "הבקשה נכשלה");
+    return data;
   });
-  const data = await parseResponse(res, action);
-  if (!data.ok) throw new Error(data.error || "הבקשה נכשלה");
-  return data;
 }
 
 // הופך את המבנה השטוח {teachers, history} למורים עם היסטוריה מקוננת וממוינת.
