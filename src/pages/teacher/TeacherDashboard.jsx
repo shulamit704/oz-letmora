@@ -31,32 +31,11 @@ function TeacherDashboard({ teacher, demoMode, loading, loadError, lastSyncedAt,
             שלום וברכה, {teacher.name} היקרה,
           </h1>
           <p className="text-base text-slate-500 mt-1.5">
-            לפניך נתוני המשרה לשנת תשפ״ו.
+            לפניך נתוני המשרה לשנת תשפ״ז.
           </p>
-
-          {/* מתי הנתונים האלה נלקחו מהגיליון. בפתיחה מוצג עותק מקומי מהכניסה
-              הקודמת, ובלי החיווי הזה אין דרך לדעת שהמספרים אינם מהרגע הזה. */}
-          {!demoMode && (loading || lastSyncedAt) && (
-            <p className={cn("flex items-center gap-1.5 text-xs mt-2", loadError ? "text-amber-600" : "text-slate-400")}>
-              {loading ? (
-                <><RefreshCw className="w-3 h-3 animate-spin" /> מתעדכן מהגיליון…</>
-              ) : (
-                <><RefreshCw className="w-3 h-3" /> עודכן לאחרונה ב־{formatSyncTime(lastSyncedAt)}</>
-              )}
-            </p>
-          )}
         </div>
 
         {demoMode && <DemoBanner />}
-
-        {/* נוסח למורה, ולא הודעת התקלה הטכנית שמיועדת למנהלת המערכת. */}
-        {!demoMode && loadError && (
-          <ErrorBanner
-            message="אין כרגע קשר עם הגיליון. המספרים שלפנייך הם מהעדכון האחרון, ודיווח חדש לא יישמר עד שהקשר יחזור."
-            onRetry={onRetry}
-            retrying={loading}
-          />
-        )}
 
         <HoursBreakdown teacher={teacher} />
 
