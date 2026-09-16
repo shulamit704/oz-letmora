@@ -44,7 +44,7 @@ function LoginPage({ onLogin, onDemo, loading, loadError }) {
         <Card className="p-6">
           <div className="space-y-4">
             <Input
-              label="סיסמה" icon={Lock} type="password" placeholder="הזינו סיסמה" autoFocus
+              label=" הקש תעודת זהות" icon={Lock} type="password" placeholder="הזינו סיסמה" autoFocus
               value={password} error={error}
               onChange={(e) => { setPassword(e.target.value); setError(""); }}
               onKeyDown={(e) => e.key === "Enter" && submit()}
