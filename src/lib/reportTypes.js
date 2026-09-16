@@ -46,6 +46,7 @@ const REPORT_TYPES = [
   // { key: "entry_math",        label: "בדיקת מבחני כניסה – מתמטיקה", group: G.CHECK, perHour: 7,  unit: "מבחנים", unitOne: "מבחן" },
   // { key: "entry_english",     label: "בדיקת מבחני כניסה – אנגלית",  group: G.CHECK, perHour: 10, unit: "מבחנים", unitOne: "מבחן" },
   { key: "entry_general",     label: "בדיקת מבחני כניסה – כללי",    group: G.CHECK, perHour: 10, unit: "מבחנים", unitOne: "מבחן" },
+  { key: "torah_baki_12",     label: "בדיקת מבחנים בתורה בקיאות כיתה י\"ב", group: G.CHECK, perHour: 10, unit: "מבחנים", unitOne: "מבחן" },
   // { key: "screening_math",    label: "בדיקת מבחני מיון – מתמטיקה",  group: G.CHECK, perHour: 4,  unit: "מבחנים", unitOne: "מבחן" },
   // { key: "screening_english", label: "בדיקת מבחני מיון – אנגלית",   group: G.CHECK, perHour: 5,  unit: "מבחנים", unitOne: "מבחן" },
 
