@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
-import { formatDate, round2 } from "../lib/utils.js";
+import { formatDate, formatHebrewDate, round2 } from "../lib/utils.js";
 import { Button } from "../ui/Button.jsx";
 import { Modal } from "../ui/Modal.jsx";
 
@@ -33,8 +33,11 @@ function DeleteHistoryModal({ open, onClose, record, teacher, onConfirm }) {
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-900 font-medium">{record.reason}</p>
           <p className="text-xs text-red-700 mt-1">
-            {formatDate(record.date)} · {round2(record.hours)} שעות
+            {formatHebrewDate(record.date) || formatDate(record.date)} · {round2(record.hours)} שעות
           </p>
+          {formatHebrewDate(record.date) && (
+            <p className="text-[11px] text-red-500/80 mt-0.5">{formatDate(record.date)}</p>
+          )}
         </div>
 
         <p className="text-sm text-slate-600 leading-relaxed">

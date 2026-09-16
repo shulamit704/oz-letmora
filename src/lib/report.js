@@ -1,5 +1,5 @@
 import { lookupHours, toYearly, displayRow } from "./hoursTable.js";
-import { clampPct, formatDate, round2, todayISO } from "./utils.js";
+import { clampPct, formatDate, formatHebrewDate, round2, todayISO } from "./utils.js";
 
 /* --------------------------- דוח PDF להדפסה ----------------------------- */
 /* הדוח נבנה כמסמך HTML נפרד ונשלח לחלון ההדפסה של הדפדפן. משם בוחרים
@@ -49,6 +49,8 @@ const REPORT_CSS = `
   th { font-size: 10px; color: #64748b; font-weight: 600; border-bottom: 1.5px solid #cbd5e1;
        background: #f8fafc; }
   td.num, th.num { text-align: left; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  /* התאריך הלועזי מתחת לעברי — משני, ולכן קטן ואפור. */
+  td .sub { font-size: 9px; color: #94a3b8; margin-top: 1px; }
   tbody tr:nth-child(even) { background: #fafcff; }
   tfoot td { font-weight: 700; border-top: 1.5px solid #cbd5e1; border-bottom: none; padding-top: 8px; }
   thead { display: table-header-group; }
@@ -86,13 +88,17 @@ function teacherReportPage(teacher) {
 
   const table = hist.length
     ? `<table>
-         <thead><tr><th class="num" style="width:90px">תאריך</th><th>סיבה / תיאור</th><th class="num" style="width:70px">שעות</th></tr></thead>
+         <thead><tr><th class="num" style="width:120px">תאריך</th><th>סיבה / תיאור</th><th class="num" style="width:70px">שעות</th></tr></thead>
          <tbody>
            ${hist
-             .map(
-               (h) =>
-                 `<tr><td class="num">${esc(formatDate(h.date))}</td><td>${esc(h.reason)}</td><td class="num">${round2(h.hours)}</td></tr>`
-             )
+             .map((h) => {
+               // התאריך העברי ראשי, והלועזי מתחתיו בקטן — כמו במסך.
+               const heb = formatHebrewDate(h.date);
+               const dateCell = heb
+                 ? `${esc(heb)}<div class="sub">${esc(formatDate(h.date))}</div>`
+                 : esc(formatDate(h.date));
+               return `<tr><td class="num">${dateCell}</td><td>${esc(h.reason)}</td><td class="num">${round2(h.hours)}</td></tr>`;
+             })
              .join("")}
          </tbody>
          <tfoot><tr><td colspan="2">סה״כ שעות שדווחו</td><td class="num">${total}</td></tr></tfoot>
@@ -105,7 +111,8 @@ function teacherReportPage(teacher) {
         <div class="school">אורחות בית יעקב<b>ירושלים</b></div>
         <div style="text-align:left">
           <div class="doc-title">דוח היסטוריית שעות</div>
-          <div class="doc-meta">הופק בתאריך ${esc(formatDate(todayISO()))}</div>
+          <div class="doc-meta">הופק בתאריך ${esc(formatHebrewDate(todayISO()) || formatDate(todayISO()))}</div>
+          <div class="doc-meta">${esc(formatDate(todayISO()))}</div>
         </div>
       </div>
 

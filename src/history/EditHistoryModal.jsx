@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Clock, CalendarDays, History, PencilLine, AlertTriangle, Loader2, Check } from "lucide-react";
-import { cn, formatDate, round2, todayISO } from "../lib/utils.js";
+import { cn, formatDate, formatHebrewDate, round2, todayISO } from "../lib/utils.js";
 import { Button } from "../ui/Button.jsx";
 import { Input } from "../ui/Input.jsx";
 import { Modal } from "../ui/Modal.jsx";
@@ -57,10 +57,15 @@ function EditHistoryModal({ open, onClose, record, teacher, onSave }) {
     <Modal open={open} onClose={onClose} title="עריכת רישום" subtitle={teacher?.name} icon={PencilLine}>
       <div className="space-y-4">
         <div className="rounded-xl bg-slate-50 p-4 text-sm">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-3">
             <span className="text-slate-500">הרישום המקורי</span>
-            <span className="font-medium text-slate-700">
-              {round2(record.hours)} שעות · {formatDate(record.date)}
+            <span className="text-end">
+              <span className="font-medium text-slate-700 block">
+                {round2(record.hours)} שעות · {formatHebrewDate(record.date) || formatDate(record.date)}
+              </span>
+              {formatHebrewDate(record.date) && (
+                <span className="text-xs text-slate-400">{formatDate(record.date)}</span>
+              )}
             </span>
           </div>
           {delta !== 0 && (

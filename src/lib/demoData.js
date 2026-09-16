@@ -1,7 +1,7 @@
 /* ----------------- נתוני דמו (בשימוש רק כשלא מוגדר גיליון) ---------------- */
 
 // הכניסה היא לפי סיסמה בלבד, ולכן אין עוד שם משתמש למנהלת.
-const ADMIN_PASSWORD = "admin2024";
+const ADMIN_PASSWORD = "menahelet1234";
 
 const demoTeachers = [
   {

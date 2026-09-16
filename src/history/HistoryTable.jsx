@@ -3,7 +3,7 @@ import { CalendarDays, History, PencilLine, Loader2, Trash2, Download, FileDown 
 import { DeleteHistoryModal } from "./DeleteHistoryModal.jsx";
 import { EditHistoryModal } from "./EditHistoryModal.jsx";
 import { printReport } from "../lib/report.js";
-import { cn, downloadCSV, formatDate, round2, todayISO } from "../lib/utils.js";
+import { cn, downloadCSV, formatDate, formatHebrewDate, round2, todayISO } from "../lib/utils.js";
 import { Badge } from "../ui/Badge.jsx";
 import { Button } from "../ui/Button.jsx";
 import { Card } from "../ui/Card.jsx";
@@ -60,6 +60,28 @@ function HistoryTable({ teacher, history, onEdit, onDelete }) {
     </div>
   );
 
+  /* התאריך העברי הוא הראשי, והלועזי מתחתיו באפור קטן — הוא זה שנשמר
+     בגיליון, ולכן נוח שיישאר לעין לצורך הצלבה. אם הדפדפן אינו יודע להמיר
+     ללוח העברי, מוצג הלועזי לבדו. */
+  const DateCell = ({ iso, small = false }) => {
+    const hebrew = formatHebrewDate(iso);
+    return (
+      <span className={cn("inline-flex items-start gap-2", small && "gap-1.5")}>
+        <CalendarDays className={cn("text-slate-400 shrink-0 mt-0.5", small ? "w-3.5 h-3.5" : "w-4 h-4")} />
+        <span className="flex flex-col leading-tight">
+          <span className={small ? "text-xs text-slate-500" : "text-slate-700"}>
+            {hebrew || formatDate(iso)}
+          </span>
+          {hebrew && (
+            <span className={cn("text-slate-400 mt-0.5", small ? "text-[11px]" : "text-xs")}>
+              {formatDate(iso)}
+            </span>
+          )}
+        </span>
+      </span>
+    );
+  };
+
   const HoursCell = ({ h }) =>
     h.pending ? (
       <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
@@ -112,8 +134,8 @@ function HistoryTable({ teacher, history, onEdit, onDelete }) {
           <tbody className="divide-y divide-slate-100">
             {sorted.map((h) => (
               <tr key={h.id} className="hover:bg-slate-50/60 transition-colors">
-                <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-2"><CalendarDays className="w-4 h-4 text-slate-400" />{formatDate(h.date)}</span>
+                <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap align-top">
+                  <DateCell iso={h.date} />
                 </td>
                 <td className="px-5 py-3.5 text-slate-700">{h.reason}</td>
                 <td className="px-5 py-3.5 text-end"><HoursCell h={h} /></td>
@@ -131,7 +153,7 @@ function HistoryTable({ teacher, history, onEdit, onDelete }) {
           <div key={h.id} className="p-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-medium text-slate-800">{h.reason}</p>
-              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" />{formatDate(h.date)}</p>
+              <div className="mt-1"><DateCell iso={h.date} small /></div>
               {editable && <RowActions h={h} className="mt-2 -ms-1.5" />}
             </div>
             <div className="shrink-0"><HoursCell h={h} /></div>

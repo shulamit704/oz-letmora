@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Clock, CalendarDays, History, PencilLine, AlertTriangle, Loader2, FileText } from "lucide-react";
 import { OTHER_TYPE, REPORT_GROUPS, REPORT_TYPES, findReportType, formulaLabel, rateLabel, unitHours } from "../../../lib/reportTypes.js";
-import { clampPct, round2, todayISO } from "../../../lib/utils.js";
+import { clampPct, formatHebrewDate, round2, todayISO } from "../../../lib/utils.js";
 import { Button } from "../../../ui/Button.jsx";
 import { Input } from "../../../ui/Input.jsx";
 import { Modal } from "../../../ui/Modal.jsx";
@@ -138,7 +138,14 @@ function UpdateHoursModal({ open, onClose, teacher, onSave }) {
           </>
         ) : null}
 
-        <Input label="תאריך" icon={CalendarDays} type="date" value={date} error={errors.date} onChange={(e) => setDate(e.target.value)} />
+        <div>
+          <Input label="תאריך" icon={CalendarDays} type="date" value={date} error={errors.date} onChange={(e) => setDate(e.target.value)} />
+          {/* בוחר התאריך של הדפדפן לועזי בלבד — כאן מוצג מה שנבחר בעברית,
+              כדי שאפשר יהיה לוודא שזה אכן היום הנכון. */}
+          {formatHebrewDate(date) && (
+            <p className="text-xs text-slate-500 mt-1.5 ps-1">{formatHebrewDate(date)}</p>
+          )}
+        </div>
         <Input
           label="סיבה / תיאור" icon={History} placeholder="לדוגמה: סדנת תכנון לימודים"
           value={reason} error={errors.reason}
