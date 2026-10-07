@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Plus, CheckCircle2, Search, History, PencilLine, FileSpreadsheet, Copy, Check, Trash2, Download, FileDown, SlidersHorizontal } from "lucide-react";
+import { Plus, CheckCircle2, Search, History, PencilLine, FileSpreadsheet, Copy, Check, Trash2, Download, FileDown, SlidersHorizontal, Mic, UsersRound } from "lucide-react";
+import { lookupHours } from "../../lib/hoursTable.js";
 import { printReport } from "../../lib/report.js";
 import { clampPct, downloadCSV, round2, todayISO } from "../../lib/utils.js";
 import { Avatar } from "../../ui/Avatar.jsx";
@@ -36,6 +37,28 @@ function PasswordCell({ password }) {
   );
 }
 
+
+/* חלוקת המשרה השבועית של המורה. רק frontalHours שמור בגיליון — הפרטניות,
+   השהייה ואחוז המשרה נגזרים ממנו דרך טבלת החלוקה.
+
+   ⚠️ כאן מוצג הערך המקורי מהטבלה ולא המוקטן ב־PERSONAL_FACTOR. הממשק
+   הניהולי צריך לראות את המקור; המקדם מופיע ביעד השנתי שבעמודת "נדרש". */
+function WeeklyHours({ frontalHours, field }) {
+  const row = lookupHours(frontalHours);
+  if (!row) return <span className="text-slate-300">—</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className="font-medium text-slate-800">{row[field]}</span>
+      <span className="text-xs text-slate-400">ש״ש</span>
+      {/* אין בטבלה ערך מדויק לשעות שהוזנו — הוצמד לשורה הקרובה. */}
+      {!row.exact && field === "frontal" && (
+        <span className="text-[11px] text-amber-600" title={`הוזן ${frontalHours}, הוצמד ל־${row.frontal}`}>
+          הוצמד
+        </span>
+      )}
+    </span>
+  );
+}
 
 function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpdate, onDelete, onOpenHistory }) {
   const [query, setQuery] = useState("");
@@ -128,8 +151,21 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
           <thead>
             <tr className="text-start text-xs font-semibold text-slate-400 tracking-wide border-b border-slate-100">
               <th className="px-5 py-3 text-start">מורה</th>
-              <th className="px-5 py-3 text-start">סיסמה</th>
-              <th className="px-5 py-3 text-start">נדרש</th>
+              <th className="px-5 py-3 text-start">תעודת זהות</th>
+              {/* שלוש עמודות השעות: שתיים שבועיות (המשרה) ואחת שנתית (היעד).
+                  בלי תת־הכותרות אי אפשר להבחין בין 1.5 ל־22.5. */}
+              <th className="px-5 py-3 text-start">
+                <span className="inline-flex items-center gap-1.5"><Mic className="w-3.5 h-3.5" />פרונטליות</span>
+                <span className="block font-normal text-slate-300 mt-0.5">שבועי</span>
+              </th>
+              <th className="px-5 py-3 text-start">
+                <span className="inline-flex items-center gap-1.5"><UsersRound className="w-3.5 h-3.5" />פרטניות</span>
+                <span className="block font-normal text-slate-300 mt-0.5">שבועי</span>
+              </th>
+              <th className="px-5 py-3 text-start">
+                נדרש
+                <span className="block font-normal text-slate-300 mt-0.5">יעד שנתי</span>
+              </th>
               <th className="px-5 py-3 text-start">נצבר</th>
               <th className="px-5 py-3 text-start">נותרו</th>
               <th className="px-5 py-3 w-48 text-start">התקדמות</th>
@@ -150,6 +186,8 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
                     </div>
                   </td>
                   <td className="px-5 py-3.5"><PasswordCell password={t.password} /></td>
+                  <td className="px-5 py-3.5"><WeeklyHours frontalHours={t.frontalHours} field="frontal" /></td>
+                  <td className="px-5 py-3.5"><WeeklyHours frontalHours={t.frontalHours} field="personal" /></td>
                   <td className="px-5 py-3.5 text-slate-600">{t.requiredHours} שעות</td>
                   <td className="px-5 py-3.5 font-medium text-slate-800">{round2(t.accumulatedHours)} שעות</td>
                   <td className="px-5 py-3.5">
@@ -213,8 +251,22 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
                 <span className="text-sm font-semibold text-slate-700">{pct}%</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">סיסמה</span>
+                <span className="text-xs text-slate-400">תעודת זהות</span>
                 <PasswordCell password={t.password} />
+              </div>
+              {/* חלוקת המשרה השבועית — פרונטליות ופרטניות */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">משרה שבועית</span>
+                <span className="inline-flex items-center gap-4 text-sm">
+                  <span className="inline-flex items-center gap-1.5" title="שעות פרונטליות שבועיות">
+                    <Mic className="w-3.5 h-3.5 text-slate-400" />
+                    <WeeklyHours frontalHours={t.frontalHours} field="frontal" />
+                  </span>
+                  <span className="inline-flex items-center gap-1.5" title="שעות פרטניות שבועיות">
+                    <UsersRound className="w-3.5 h-3.5 text-slate-400" />
+                    <WeeklyHours frontalHours={t.frontalHours} field="personal" />
+                  </span>
+                </span>
               </div>
               <ProgressBar value={pct} />
               <div className="flex items-center gap-2">

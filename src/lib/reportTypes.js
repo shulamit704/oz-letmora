@@ -36,7 +36,7 @@ const REPORT_TYPES = [
   { key: "patrol", label: "פטרול", group: G.WEEKLY, hours: 1, unit: "שעות פטרול", unitOne: "שעת פטרול" },
 
   /* ---- הכנה ותפקידים שנתיים: תגמול שנתי קבוע ---- */
-  { key: "prep_math_45",         label: "הכנה למבחן מתמטיקה 4/5 יח'", group: G.PREP, hours: 30, unit: "כיתות",   unitOne: "כיתה",  oncePerYear: true },
+  { key: "prep_math_45",         label: "הכנה למבחן במתמטיקה ובאנגלית  4/5 יח'", group: G.PREP, hours: 30, unit: "כיתות",   unitOne: "כיתה",  oncePerYear: true },
   // { key: "prep_english_45",   label: "הכנה למבחן באנגלית 4/5 יח'", group: G.PREP, hours: 30, unit: "כיתות",   unitOne: "כיתה",  oncePerYear: true },
   { key: "prep_ext_3",           label: "הכנה למבחני חוץ 3 יח'",      group: G.PREP, hours: 15, unit: "כיתות",   unitOne: "כיתה",  oncePerYear: true },
   { key: "subject_coordination", label: "ריכוז מקצוע",                group: G.PREP, hours: 15, unit: "מקצועות", unitOne: "מקצוע", oncePerYear: true },
