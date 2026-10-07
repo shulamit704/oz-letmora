@@ -25,7 +25,8 @@
 const CACHE_KEY = "oz.hours.cache";
 const SESSION_KEY = "oz.hours.session";
 
-const CACHE_VERSION = 1;
+// 2 — התאריכים שנשמרו עד תיקון fmtDate_ ב־Code.gs היו "Tue Sep 15" בלי שנה.
+const CACHE_VERSION = 2;
 const SESSION_VERSION = 1;
 
 /* גיל מרבי למטמון. מעבר לשבוע עדיף מסך טעינה על פני מספרים ישנים שעלולים

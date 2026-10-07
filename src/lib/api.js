@@ -3,7 +3,7 @@
    ========================================================================= */
 
 // 👇 הדביקו כאן את כתובת ה־Web App של Apps Script (מסתיימת ב־/exec).
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxveR0qTBopPOsWopYSg6UJJFCIekn2maU9yx4ta3AHUi6V192UPL0QJFoNpsc8kDsZTw/exec";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzIQbWC-gHWwZD8dljW4ut_EIU4qxzZJWgZcD4lojeSQunbV_pbOsokUMfeAdQ5o2oaKQ/exec";
 
 const isConfigured = () =>
   !!WEB_APP_URL && !WEB_APP_URL.startsWith("PASTE_") && WEB_APP_URL.includes("http");
