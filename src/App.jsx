@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { WEB_APP_URL, apiGetAll, apiPost, isConfigured, mergeServerData } from "./lib/api.js";
 import { ADMIN_PASSWORD, SHOW_DEMO_ENTRY, demoTeachers } from "./lib/demoData.js";
+import { totalField } from "./lib/supportHours.js";
 import { clearSession, readCachedTeachers, readSession, writeCachedTeachers, writeSession } from "./lib/storage.js";
 import { round2 } from "./lib/utils.js";
 import { LoginPage } from "./pages/LoginPage.jsx";
@@ -49,6 +50,11 @@ export default function App() {
   const [writeLog, setWriteLog] = useState([]); // יומן פעולות הכתיבה לגיליון
   const [syncError, setSyncError] = useState(""); // כשל בשמירה שקרתה ברקע
   const loadRef = useRef(null);                   // הטעינה שרצה כרגע מהגיליון
+
+  /* עזרים לניסוח היומן בשפה פשוטה — שם המורה במקום מזהה, וסוג השעות במילים. */
+  const nameOf = (id) => teachers.find((t) => t.id === id)?.name || `מורה מס' ${id}`;
+  const hoursKind = (field) => (field === "supportHours" ? "שעות תומכות" : "שעות פרטניות");
+  const totalOf = (field) => (field === "supportHours" ? "סך השעות התומכות" : "סך השעות הפרטניות");
 
   const pushLog = (entry) =>
     setWriteLog((prev) =>
@@ -138,15 +144,18 @@ export default function App() {
     /* eslint-disable-next-line */
   }, [loading, session, teachers]);
 
-  /* סך השעות שהגיליון מחזיר הוא מקור האמת: הוא מחושב מחדש מכל שורות
-     ההיסטוריה, ולכן הוא נכון גם כששתי מורות דיווחו באותו רגע. החישוב
-     המקומי נשאר רק כגיבוי, למקרה שהשרת לא שלח את השדה. */
-  const syncAccumulated = (teacherId, value) => {
-    const n = Number(value);
-    if (value == null || !Number.isFinite(n)) return;
-    setTeachers((prev) =>
-      prev.map((t) => (t.id === teacherId ? { ...t, accumulatedHours: round2(n) } : t))
-    );
+  /* הסכומים שהגיליון מחזיר הם מקור האמת: הם מחושבים מחדש מכל שורות
+     ההיסטוריה, ולכן נכונים גם כששתי מורות דיווחו באותו רגע. שני מונים:
+     accumulatedHours (פרטניות) ו־supportHours (תומכות). החישוב המקומי נשאר
+     רק כגיבוי, למקרה שהשרת לא שלח שדה. */
+  const syncTotals = (teacherId, data) => {
+    const patch = {};
+    ["accumulatedHours", "supportHours"].forEach((f) => {
+      const n = Number(data?.[f]);
+      if (data?.[f] != null && Number.isFinite(n)) patch[f] = round2(n);
+    });
+    if (!Object.keys(patch).length) return;
+    setTeachers((prev) => prev.map((t) => (t.id === teacherId ? { ...t, ...patch } : t)));
   };
 
   /* הזיהוי נעשה לפי הסיסמה בלבד — אין שדה שם משתמש. הסיסמה היא שקובעת מי
@@ -221,16 +230,23 @@ export default function App() {
   };
 
   const handleAddTeacher = async ({ name, password, frontalHours, requiredHours }) => {
+    // מורה חדשה — אין "לפני", כל השדות מופיעים כחדשים.
+    const changes = [
+      { label: "שם", before: "—", after: name },
+      { label: "תעודת זהות", before: "—", after: password },
+      { label: "שעות פרונטליות", before: "—", after: frontalHours ?? "—" },
+      { label: "יעד שנתי", before: "—", after: requiredHours },
+    ];
     if (!configured) {
       const id = teachers.reduce((m, t) => Math.max(m, t.id), 0) + 1;
-      setTeachers((prev) => [...prev, { id, name, password, frontalHours, requiredHours, accumulatedHours: 0, history: [] }]);
-      pushLog({ action: "addTeacher", payload: { name, password, frontalHours, requiredHours }, description: `נוספה שורה לגיליון Teachers (id ${id})` });
+      setTeachers((prev) => [...prev, { id, name, password, frontalHours, requiredHours, accumulatedHours: 0, supportHours: 0, history: [] }]);
+      pushLog({ action: "addTeacher", payload: { name, password, frontalHours, requiredHours }, description: `נוספה מורה חדשה: ${name} (יעד שנתי: ${requiredHours} שעות)`, changes });
       return { ok: true };
     }
     try {
       const data = await apiPost("addTeacher", { name, password, frontalHours, requiredHours });
       setTeachers((prev) => [...prev, { ...data.teacher, history: [] }]);
-      pushLog({ action: "addTeacher", payload: { name, password, frontalHours, requiredHours }, description: `נוספה שורה לגיליון Teachers (id ${data.teacher.id})` });
+      pushLog({ action: "addTeacher", payload: { name, password, frontalHours, requiredHours }, description: `נוספה מורה חדשה: ${name} (יעד שנתי: ${requiredHours} שעות)`, changes });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message };
@@ -250,7 +266,8 @@ export default function App() {
       pushLog({
         action: "addTeachers",
         payload: { count: created.length },
-        description: `נוספו ${created.length} שורות לגיליון Teachers בפנייה אחת (id ${created[0]?.id}–${created[created.length - 1]?.id})`,
+        description: `נוספו ${created.length} מורות חדשות בבת אחת (ייבוא מ־Excel)`,
+        changes: created.map((t) => ({ label: t.name, before: "—", after: `יעד שנתי ${t.requiredHours} שעות` })),
       });
       return { ok: true, teachers: created };
     } catch (e) {
@@ -279,11 +296,28 @@ export default function App() {
           return next;
         })
       );
+    // מה השתנה בפועל, לכל מורה — לפני ואחרי.
+    const changes = list.flatMap((u) => {
+      const t = teachers.find((x) => x.id === u.id);
+      if (!t) return [];
+      const rows = [];
+      if (u.requiredHours !== undefined && round2(u.requiredHours) !== round2(t.requiredHours))
+        rows.push({ label: `${t.name} · יעד שנתי`, before: round2(t.requiredHours), after: round2(u.requiredHours) });
+      if (u.frontalHours !== undefined && Number(u.frontalHours) !== Number(t.frontalHours))
+        rows.push({ label: `${t.name} · שעות פרונטליות`, before: t.frontalHours ?? "—", after: u.frontalHours });
+      if (u.password !== undefined && String(u.password) !== String(t.password ?? ""))
+        rows.push({ label: `${t.name} · תעודת זהות`, before: t.password || "—", after: u.password });
+      return rows;
+    });
     const log = () =>
       pushLog({
         action: "updateTeachers",
         payload: { count: list.length },
-        description: `עודכנו פרטיהן של ${list.length} מורות בגיליון Teachers (שעות ${list.filter((t) => t.requiredHours !== undefined).length} · סיסמאות ${list.filter((t) => t.password !== undefined).length})`,
+        changes,
+        description:
+          list.length === 1 && list[0].requiredHours !== undefined && list[0].password === undefined && list[0].frontalHours === undefined
+            ? `היעד השנתי של ${nameOf(list[0].id)} עודכן ל־${list[0].requiredHours} שעות`
+            : `עודכנו הפרטים של ${list.length} מורות (יעד שנתי: ${list.filter((t) => t.requiredHours !== undefined).length} · סיסמה: ${list.filter((t) => t.password !== undefined).length})`,
       });
 
     if (!configured) {
@@ -304,11 +338,19 @@ export default function App() {
 
   const handleDeleteTeacher = async (teacherId) => {
     const gone = teachers.find((t) => t.id === teacherId);
+    // מה היה למורה לפני המחיקה — ואחריה כלום.
+    const changes = gone
+      ? [
+          { label: "שעות פרטניות שנצברו", before: round2(gone.accumulatedHours || 0), after: "נמחק" },
+          { label: "שעות תומכות שנצברו", before: round2(gone.supportHours || 0), after: "נמחק" },
+          { label: "דיווחים", before: (gone.history || []).length, after: "נמחקו" },
+        ]
+      : [];
     const removeLocal = () => setTeachers((prev) => prev.filter((t) => t.id !== teacherId));
 
     if (!configured) {
       removeLocal();
-      pushLog({ action: "deleteTeacher", payload: { teacherId }, description: `נמחקה שורת מורה ${teacherId} מהגיליון Teachers` });
+      pushLog({ action: "deleteTeacher", payload: { teacherId }, changes, description: `נמחקה המורה ${gone ? gone.name : nameOf(teacherId)}` });
       return { ok: true };
     }
     try {
@@ -317,7 +359,8 @@ export default function App() {
       pushLog({
         action: "deleteTeacher",
         payload: { teacherId },
-        description: `נמחקה ${gone ? gone.name : "מורה " + teacherId} מ־Teachers, ועוד ${data.historyRemoved || 0} רישומים מ־History`,
+        changes,
+        description: `נמחקה המורה ${gone ? gone.name : nameOf(teacherId)}, יחד עם ${data.historyRemoved || 0} הדיווחים שלה`,
       });
       return { ok: true };
     } catch (e) {
@@ -329,7 +372,7 @@ export default function App() {
         pushLog({
           action: "deleteTeacher",
           payload: { teacherId },
-          description: `${gone ? gone.name : "מורה " + teacherId} כבר לא הייתה בגיליון — הוסרה מהתצוגה וסונכרן מחדש`,
+          description: `${gone ? gone.name : nameOf(teacherId)} כבר לא הייתה בגיליון — הוסרה מהרשימה`,
         });
         refetch();
         return { ok: true };
@@ -342,32 +385,35 @@ export default function App() {
      הגיליון עונה בין 2 ל־30 שניות, וזה זמן שאין סיבה שהמורה תבהה בו. הרישום
      מסומן "נשמר…" עד שהשרת מאשר, ואם השמירה נכשלת הוא נסוג אחורה במלואו
      ומוצגת הודעה — כך שהמסך לעולם לא מציג שעות שלא באמת נשמרו. */
-  const handleUpdateHours = async (teacherId, { hours, reason, date }) => {
+  /* kind — "support" לדיווח פטרול (שעות תומכות), ריק לדיווח פרטני. הוא
+     קובע איזה משני הסכומים מתעדכן. */
+  const handleUpdateHours = async (teacherId, { hours, reason, date, kind = "" }) => {
+    const field = totalField(kind);
     const prior = teachers.find((t) => t.id === teacherId);
-    const newAcc = round2((prior ? prior.accumulatedHours : 0) + hours);
+    const newAcc = round2((prior ? prior[field] || 0 : 0) + hours);
     const tempId = `pending-${Date.now()}`;
 
     const addLocal = (record) =>
       setTeachers((prev) =>
         prev.map((t) =>
           t.id === teacherId
-            ? { ...t, accumulatedHours: round2(t.accumulatedHours + hours), history: [record, ...t.history] }
+            ? { ...t, [field]: round2((t[field] || 0) + hours), history: [record, ...t.history] }
             : t
         )
       );
 
     if (!configured) {
-      addLocal({ id: Date.now(), teacherId, date, hours, reason });
-      pushLog({ action: "updateHours", payload: { teacherId, hours, date, reason }, description: `נוספה שורה לגיליון History; accumulatedHours של מורה ${teacherId} עודכן ל־${newAcc}` });
+      addLocal({ id: Date.now(), teacherId, date, hours, reason, kind });
+      pushLog({ action: "updateHours", payload: { teacherId, hours, date, reason, kind }, description: `דיווח חדש ל${nameOf(teacherId)}: ${hours} ${hoursKind(field)} (${reason}). ${totalOf(field)} שלה: ${newAcc}`, changes: [{ label: totalOf(field), before: round2(prior?.[field] || 0), after: newAcc }] });
       return { ok: true };
     }
 
-    addLocal({ id: tempId, teacherId, date, hours, reason, pending: true });
+    addLocal({ id: tempId, teacherId, date, hours, reason, kind, pending: true });
 
     // השמירה ממשיכה אחרי שהחלון כבר נסגר.
     (async () => {
       try {
-        const data = await apiPost("updateHours", { teacherId, hours, date, reason });
+        const data = await apiPost("updateHours", { teacherId, hours, date, reason, kind });
         // מחליפים את הרישום הזמני ברשומה האמיתית שחזרה מהגיליון.
         setTeachers((prev) =>
           prev.map((t) =>
@@ -376,9 +422,9 @@ export default function App() {
               : t
           )
         );
-        // ומיישרים את הסכום לפי מה שהגיליון חישב בפועל.
-        syncAccumulated(teacherId, data.accumulatedHours);
-        pushLog({ action: "updateHours", payload: { teacherId, hours, date, reason }, description: `נוספה שורה לגיליון History (id ${data.record.id}); accumulatedHours של מורה ${teacherId} עודכן ל־${newAcc}` });
+        // ומיישרים את הסכומים לפי מה שהגיליון חישב בפועל.
+        syncTotals(teacherId, data);
+        pushLog({ action: "updateHours", payload: { teacherId, hours, date, reason, kind }, description: `דיווח חדש ל${nameOf(teacherId)}: ${hours} ${hoursKind(field)} (${reason}). ${totalOf(field)} שלה: ${newAcc}`, changes: [{ label: totalOf(field), before: round2(prior?.[field] || 0), after: newAcc }] });
       } catch (e) {
         // נסיגה מלאה: גם הרישום וגם השעות שנוספו לסכום.
         setTeachers((prev) =>
@@ -386,7 +432,7 @@ export default function App() {
             t.id === teacherId
               ? {
                   ...t,
-                  accumulatedHours: round2(t.accumulatedHours - hours),
+                  [field]: round2((t[field] || 0) - hours),
                   history: t.history.filter((h) => h.id !== tempId),
                 }
               : t
@@ -409,6 +455,15 @@ export default function App() {
     if (before.pending) return { ok: false, error: "הרישום עדיין נשמר בגיליון. יש להמתין רגע ולנסות שוב." };
 
     const delta = round2(hours - before.hours);
+    const field = totalField(before.kind); // סוג הרישום אינו משתנה בעריכה
+
+    // מה השתנה בדיווח, ומה קרה לסכום — לפני ואחרי.
+    const priorTotal = round2(owner[field] || 0);
+    const changes = [
+      round2(before.hours) !== round2(hours) && { label: "שעות בדיווח", before: round2(before.hours), after: round2(hours) },
+      before.reason !== reason && { label: "תיאור", before: before.reason, after: reason },
+      delta !== 0 && { label: totalOf(field), before: priorTotal, after: round2(priorTotal + delta) },
+    ].filter(Boolean);
 
     const patchRecord = (patch, hoursDelta) =>
       setTeachers((prev) =>
@@ -416,7 +471,7 @@ export default function App() {
           t.id === teacherId
             ? {
                 ...t,
-                accumulatedHours: round2(t.accumulatedHours + hoursDelta),
+                [field]: round2((t[field] || 0) + hoursDelta),
                 history: t.history.map((h) => (h.id === recordId ? { ...h, ...patch } : h)),
               }
             : t
@@ -425,7 +480,7 @@ export default function App() {
 
     if (!configured) {
       patchRecord({ hours, reason, date }, delta);
-      pushLog({ action: "editHours", payload: { teacherId, id: recordId, hours, date, reason }, description: `עודכנה שורה ${recordId} בגיליון History; accumulatedHours של מורה ${teacherId} שונה ב־${delta}` });
+      pushLog({ action: "editHours", payload: { teacherId, id: recordId, hours, date, reason }, description: `תוקן דיווח של ${nameOf(teacherId)}: מ־${before.hours} ל־${hours} ${hoursKind(field)} (${reason})`, changes });
       return { ok: true };
     }
 
@@ -435,8 +490,8 @@ export default function App() {
       try {
         const data = await apiPost("editHours", { teacherId, id: recordId, hours, date, reason });
         patchRecord({ saving: false }, 0);
-        syncAccumulated(teacherId, data.accumulatedHours);
-        pushLog({ action: "editHours", payload: { teacherId, id: recordId, hours, date, reason }, description: `עודכנה שורה ${recordId} בגיליון History; accumulatedHours של מורה ${teacherId} שונה ב־${delta}` });
+        syncTotals(teacherId, data);
+        pushLog({ action: "editHours", payload: { teacherId, id: recordId, hours, date, reason }, description: `תוקן דיווח של ${nameOf(teacherId)}: מ־${before.hours} ל־${hours} ${hoursKind(field)} (${reason})`, changes });
       } catch (e) {
         patchRecord({ hours: before.hours, reason: before.reason, date: before.date, saving: false }, -delta);
         setSyncError(`עריכת הרישום לא נשמרה בגיליון: ${e.message}. הרישום הוחזר לערכו הקודם.`);
@@ -457,6 +512,7 @@ export default function App() {
 
     // מיקומו ברשימה נשמר מראש, כדי שנסיגה תחזיר אותו בדיוק לשם ולא לראש.
     const goneIndex = owner.history.findIndex((h) => h.id === recordId);
+    const field = totalField(gone.kind);
 
     const removeLocal = () =>
       setTeachers((prev) =>
@@ -464,7 +520,7 @@ export default function App() {
           t.id === teacherId
             ? {
                 ...t,
-                accumulatedHours: round2(t.accumulatedHours - gone.hours),
+                [field]: round2((t[field] || 0) - gone.hours),
                 history: t.history.filter((h) => h.id !== recordId),
               }
             : t
@@ -477,12 +533,17 @@ export default function App() {
           if (t.id !== teacherId) return t;
           const history = [...t.history];
           history.splice(Math.min(goneIndex, history.length), 0, gone);
-          return { ...t, accumulatedHours: round2(t.accumulatedHours + gone.hours), history };
+          return { ...t, [field]: round2((t[field] || 0) + gone.hours), history };
         })
       );
 
+    const priorTotal = round2(owner[field] || 0);
+    const changes = [
+      { label: "הדיווח", before: `${round2(gone.hours)} שעות · ${gone.reason}`, after: "נמחק" },
+      { label: totalOf(field), before: priorTotal, after: round2(priorTotal - gone.hours) },
+    ];
     const log = () =>
-      pushLog({ action: "deleteHours", payload: { teacherId, id: recordId }, description: `נמחקה שורה ${recordId} מגיליון History; ${gone.hours} שעות נגרעו מהסכום של מורה ${teacherId}` });
+      pushLog({ action: "deleteHours", payload: { teacherId, id: recordId }, changes, description: `נמחק דיווח של ${nameOf(teacherId)}: ${gone.hours} ${hoursKind(field)} (${gone.reason}). השעות ירדו מהסכום שלה` });
 
     if (!configured) {
       removeLocal();
@@ -496,7 +557,7 @@ export default function App() {
     (async () => {
       try {
         const data = await apiPost("deleteHours", { teacherId, id: recordId });
-        syncAccumulated(teacherId, data.accumulatedHours);
+        syncTotals(teacherId, data);
         log();
       } catch (e) {
         // "לא נמצא" פירושו שהשורה כבר איננה בגיליון — ההסרה מהמסך נכונה,

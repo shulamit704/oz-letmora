@@ -1,4 +1,5 @@
 import { lookupHours, toYearly, displayRow } from "./hoursTable.js";
+import { SUPPORT_TARGET } from "./supportHours.js";
 import { clampPct, formatDate, formatHebrewDate, round2, todayISO } from "./utils.js";
 
 /* --------------------------- דוח PDF להדפסה ----------------------------- */
@@ -126,6 +127,9 @@ function teacherReportPage(teacher) {
           <b>${remaining === 0 ? "הושלם" : remaining}</b>
         </div>
         <div class="stat"><span>התקדמות</span><b>${pct}%</b></div>
+        <div class="stat ${(teacher.supportHours || 0) >= SUPPORT_TARGET ? "done" : ""}">
+          <span>שעות תומכות</span><b>${round2(teacher.supportHours || 0)} / ${SUPPORT_TARGET}</b>
+        </div>
       </div>
 
       ${breakdown}

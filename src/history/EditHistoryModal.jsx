@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { Clock, CalendarDays, History, PencilLine, AlertTriangle, Loader2, Check } from "lucide-react";
-import { cn, formatDate, formatHebrewDate, round2, todayISO } from "../lib/utils.js";
+import { Clock, History, PencilLine, AlertTriangle, Loader2, Check } from "lucide-react";
+import { isSupportRecord } from "../lib/supportHours.js";
+import { cn, formatDate, formatHebrewDate, round2 } from "../lib/utils.js";
 import { Button } from "../ui/Button.jsx";
+import { DateDisplay } from "../ui/DateDisplay.jsx";
 import { Input } from "../ui/Input.jsx";
 import { Modal } from "../ui/Modal.jsx";
 
@@ -12,7 +14,6 @@ import { Modal } from "../ui/Modal.jsx";
 function EditHistoryModal({ open, onClose, record, teacher, onSave }) {
   const [hours, setHours] = useState("");
   const [reason, setReason] = useState("");
-  const [date, setDate] = useState(todayISO());
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -21,7 +22,6 @@ function EditHistoryModal({ open, onClose, record, teacher, onSave }) {
     if (open && record) {
       setHours(String(record.hours ?? ""));
       setReason(record.reason || "");
-      setDate(record.date || todayISO());
       setErrors({});
       setSubmitError("");
       setSaving(false);
@@ -30,14 +30,15 @@ function EditHistoryModal({ open, onClose, record, teacher, onSave }) {
 
   if (!record) return null;
 
+  // רישום פטרול נספר בשעות התומכות, ולכן התחזית מתייחסת לסכום שלהן.
+  const support = isSupportRecord(record);
   const delta = round2((Number(hours) || 0) - record.hours);
-  const projected = round2((teacher?.accumulatedHours ?? 0) + delta);
+  const projected = round2(((support ? teacher?.supportHours : teacher?.accumulatedHours) ?? 0) + delta);
 
   const submit = async () => {
     const e = {};
     if (!hours || Number(hours) <= 0) e.hours = "יש להזין מספר שעות חיובי.";
     if (!reason.trim()) e.reason = "יש להוסיף סיבה קצרה לרישום.";
-    if (!date) e.date = "יש לבחור תאריך.";
     setErrors(e);
     if (Object.keys(e).length) return;
 
@@ -46,7 +47,7 @@ function EditHistoryModal({ open, onClose, record, teacher, onSave }) {
     const res = await onSave(record.id, {
       hours: round2(Number(hours)),
       reason: reason.trim(),
-      date,
+      date: record.date, // התאריך אינו ניתן לשינוי — נשמר כפי שדווח
     });
     setSaving(false);
     if (res?.ok) onClose();
@@ -70,21 +71,17 @@ function EditHistoryModal({ open, onClose, record, teacher, onSave }) {
           </div>
           {delta !== 0 && (
             <p className={cn("text-xs mt-2 font-medium", delta > 0 ? "text-blue-600" : "text-amber-600")}>
-              {delta > 0 ? `יתווספו ${delta} שעות` : `ייגרעו ${Math.abs(delta)} שעות`} · הסכום הכולל יעמוד על {projected} שעות
+              {delta > 0 ? `יתווספו ${delta} שעות` : `ייגרעו ${Math.abs(delta)} שעות`} · {support ? "השעות התומכות" : "הסכום הכולל"} יעמדו על {projected} שעות
             </p>
           )}
         </div>
 
         <Input
-          label="שעות פרטניות" icon={Clock} type="number" min="0.5" step="0.5"
+          label={support ? "שעות תומכות" : "שעות פרטניות"} icon={Clock} type="number" min="0.5" step="0.5"
           value={hours} error={errors.hours}
           onChange={(e) => setHours(e.target.value)}
         />
-        <Input
-          label="תאריך" icon={CalendarDays} type="date"
-          value={date} error={errors.date}
-          onChange={(e) => setDate(e.target.value)}
-        />
+        <DateDisplay iso={record.date} note="לא ניתן לשינוי" />
         <Input
           label="סיבה / תיאור" icon={History}
           value={reason} error={errors.reason}

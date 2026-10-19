@@ -1,69 +1,69 @@
-import { Mic, FileText, UsersRound } from "lucide-react";
 import { WEEKS_PER_YEAR, lookupHours, toYearly, displayRow } from "../../lib/hoursTable.js";
-import { Badge } from "../../ui/Badge.jsx";
+import { SUPPORT_TARGET } from "../../lib/supportHours.js";
+import { cn } from "../../lib/utils.js";
 import { Card } from "../../ui/Card.jsx";
 
-/* חלוקת השעות של המורה — פרונטליות / פרטניות / שהייה, שבועי ושנתי. */
-function HoursBreakdown({ teacher }) {
+// תווית "בדיווח" — מסמנת את השעות שהמורה צריכה לדווח עליהן באופן שוטף.
+function ReportTag({ tone }) {
+  return (
+    <span
+      className={cn(
+        "text-xs font-bold px-2 py-0.5 rounded-full",
+        tone === "teal" ? "bg-teal-50 text-teal-700" : "bg-blue-50 text-blue-700"
+      )}
+    >
+      בדיווח
+    </span>
+  );
+}
+
+function Line({ label, tag, value, sub, last = false }) {
+  return (
+    <div className={cn("flex items-center justify-between gap-3 py-3.5", !last && "border-b border-slate-100")}>
+      <span className="font-semibold flex items-center gap-2">
+        {label}
+        {tag && <ReportTag tone={tag} />}
+      </span>
+      <span className="text-left">
+        <b className="text-lg">{value}</b> <span className="text-sm text-slate-500">{sub}</span>
+      </span>
+    </div>
+  );
+}
+
+/* המשרה של המורה — פרונטליות / פרטניות / שהייה, שבועי ושנתי, ובנוסף
+   השעות התומכות, שהן יעד שנתי קבוע מעבר למשרה השבועית. */
+function HoursBreakdown({ teacher, className = "" }) {
   // displayRow — השעות הפרטניות והסיכום כפי שהם מוצגים למורה, אחרי המקדם.
   const row = displayRow(lookupHours(teacher.frontalHours));
-  if (!row) {
-    return (
-      <Card className="p-5">
+
+  return (
+    <Card className={cn("p-6 flex flex-col gap-[18px]", className)}>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold">המשרה שלך</h2>
+        {row && (
+          <span className="text-[15px] text-slate-500">
+            {row.pct}% משרה · {row.total} שעות בשבוע · {toYearly(row.total)} בשנה
+          </span>
+        )}
+      </div>
+
+      {row ? (
+        <div className="flex flex-col">
+          <Line label="שעות פרונטליות" value={row.frontal} sub={`בשבוע · ${toYearly(row.frontal)} בשנה`} />
+          <Line label="שעות פרטניות" tag="blue" value={row.personal} sub={`בשבוע · ${toYearly(row.personal)} בשנה`} />
+          <Line label="שעות שהייה" value={row.support} sub={`בשבוע · ${toYearly(row.support)} בשנה`} />
+          <Line label="שעות תומכות" tag="teal" value={SUPPORT_TARGET} sub="בשנה (מעבר למשרה השבועית)" last />
+        </div>
+      ) : (
         <p className="text-sm text-slate-500">
           חלוקת השעות תוצג לאחר שיוזנו השעות הפרונטליות השבועיות עבורך. פני למנהל המערכת.
         </p>
-      </Card>
-    );
-  }
+      )}
 
-  // אייקון אחיד בגוון ניטרלי — שלוש הקטגוריות שוות מעמד, הצבע שמור למשמעות
-  // (כחול = נצבר, אפור = יעד, כתום = פער).
-  const cats = [
-    { key: "frontal",  label: "שעות פרונטליות", icon: Mic,        weekly: row.frontal },
-    { key: "personal", label: "שעות פרטניות",   icon: UsersRound, weekly: row.personal },
-    { key: "support",  label: "שעות שהייה",     icon: FileText,   weekly: row.support },
-  ];
-
-  return (
-    <Card>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-5 pb-4 border-b border-slate-100">
-        <div>
-          <h3 className="font-semibold text-slate-900">חלוקת השעות שלך</h3>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {row.pct}% משרה · {row.total} שע׳/שבוע · {toYearly(row.total)} שע׳/שנה
-          </p>
-        </div>
-        <Badge tone="slate">שנתי = שבועי × {WEEKS_PER_YEAR}</Badge>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x sm:divide-x-reverse divide-slate-100">
-        {cats.map((c) => (
-          <div key={c.key} className="p-5">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
-                <c.icon className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-medium text-slate-700">{c.label}</span>
-            </div>
-
-            {/* מספר ראשי — שבועי */}
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-4xl font-bold text-slate-900 tracking-tight leading-none">{c.weekly}</span>
-              <span className="text-sm font-medium text-slate-500">שע׳/שבוע</span>
-            </div>
-
-            {/* מספר משני — שנתי */}
-            <p className="mt-2 text-sm text-slate-400">
-              <span className="font-semibold text-slate-500">{toYearly(c.weekly)}</span> שע׳/שנה
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
-        מעקב ההתקדמות מתייחס לשעות הפרטניות בלבד.
-      </div>
+      <p className="m-0 px-3.5 py-3 rounded-xl bg-slate-50 text-sm text-slate-600">
+        החישוב השנתי מבוסס על {WEEKS_PER_YEAR} שבועות לימוד. רק השעות המסומנות ״בדיווח״ דורשות דיווח שוטף.
+      </p>
     </Card>
   );
 }

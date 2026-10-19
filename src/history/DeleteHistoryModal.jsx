@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { isSupportRecord } from "../lib/supportHours.js";
 import { formatDate, formatHebrewDate, round2 } from "../lib/utils.js";
 import { Button } from "../ui/Button.jsx";
 import { Modal } from "../ui/Modal.jsx";
@@ -16,7 +17,8 @@ function DeleteHistoryModal({ open, onClose, record, teacher, onConfirm }) {
 
   if (!record) return null;
 
-  const remainingAfter = round2((teacher?.accumulatedHours ?? 0) - record.hours);
+  const support = isSupportRecord(record);
+  const remainingAfter = round2(((support ? teacher?.supportHours : teacher?.accumulatedHours) ?? 0) - record.hours);
 
   const confirm = async () => {
     setError("");
@@ -41,7 +43,7 @@ function DeleteHistoryModal({ open, onClose, record, teacher, onConfirm }) {
         </div>
 
         <p className="text-sm text-slate-600 leading-relaxed">
-          הרישום יימחק מהגיליון, וסך השעות שנצברו ירד ל־
+          הרישום יימחק מהגיליון, וסך {support ? "השעות התומכות" : "השעות שנצברו"} ירד ל־
           <span className="font-semibold text-slate-800"> {remainingAfter} שעות</span>. הפעולה אינה הפיכה.
         </p>
 

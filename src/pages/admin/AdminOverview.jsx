@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Users, Clock, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Users, Clock, TrendingUp, CheckCircle2, ShieldCheck } from "lucide-react";
+import { SUPPORT_TARGET } from "../../lib/supportHours.js";
 import { clampPct, cn, round2 } from "../../lib/utils.js";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { Button } from "../../ui/Button.jsx";
@@ -36,7 +37,8 @@ function AdminOverview({ teachers, onOpenTeachers }) {
     const avg = total
       ? Math.round(teachers.reduce((s, t) => s + clampPct(t.accumulatedHours, t.requiredHours), 0) / total)
       : 0;
-    return { total, totalLogged: round2(totalLogged), completed, avg };
+    const supportCompleted = teachers.filter((t) => t.supportHours >= SUPPORT_TARGET).length;
+    return { total, totalLogged: round2(totalLogged), completed, avg, supportCompleted };
   }, [teachers]);
 
   const ranked = useMemo(
@@ -49,11 +51,12 @@ function AdminOverview({ teachers, onOpenTeachers }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <StatCard icon={Users} label="סה&quot;כ מורים" value={stats.total} sub="חשבונות פעילים" tone="blue" />
         <StatCard icon={Clock} label="שעות שתועדו" value={stats.totalLogged} sub="בכל המורים" tone="slate" />
         <StatCard icon={TrendingUp} label="השלמה ממוצעת" value={`${stats.avg}%`} sub="מתוך היעד הנדרש" tone="amber" />
-        <StatCard icon={CheckCircle2} label="עמדו ביעד" value={`${stats.completed}/${stats.total}`} sub="השלימו את השעות הנדרשות" tone="green" />
+        <StatCard icon={CheckCircle2} label="עמדו ביעד" value={`${stats.completed}/${stats.total}`} sub="השלימו את השעות הפרטניות" tone="green" />
+        <StatCard icon={ShieldCheck} label="השלימו תומכות" value={`${stats.supportCompleted}/${stats.total}`} sub={`${SUPPORT_TARGET} שעות פטרול`} tone="green" />
       </div>
 
       <Card>
@@ -73,7 +76,9 @@ function AdminOverview({ teachers, onOpenTeachers }) {
                 <Avatar name={t.name} size="sm" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 truncate">{t.name}</p>
-                  <p className="text-xs text-slate-400">{round2(t.accumulatedHours)} / {t.requiredHours} שעות</p>
+                  <p className="text-xs text-slate-400">
+                    {round2(t.accumulatedHours)} / {t.requiredHours} שעות · תומכות {round2(t.supportHours)} / {SUPPORT_TARGET}
+                  </p>
                 </div>
                 <div className="w-32 hidden sm:block"><ProgressBar value={pct} /></div>
                 <span className="w-10 text-end text-sm font-semibold text-slate-700">{pct}%</span>

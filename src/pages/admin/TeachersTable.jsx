@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Plus, CheckCircle2, Search, History, PencilLine, FileSpreadsheet, Copy, Check, Trash2, Download, FileDown, SlidersHorizontal, Mic, UsersRound } from "lucide-react";
+import { Plus, CheckCircle2, Search, History, PencilLine, FileSpreadsheet, Copy, Check, Trash2, Download, FileDown, SlidersHorizontal, Mic, UsersRound, ShieldCheck } from "lucide-react";
 import { lookupHours } from "../../lib/hoursTable.js";
 import { printReport } from "../../lib/report.js";
+import { SUPPORT_TARGET } from "../../lib/supportHours.js";
 import { clampPct, downloadCSV, round2, todayISO } from "../../lib/utils.js";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { Badge } from "../../ui/Badge.jsx";
@@ -73,14 +74,14 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
 
   // דוח מרוכז: כל רישומי השעות של כל המורות, ממוין לפי שם ואז לפי תאריך.
   const exportAll = () => {
-    const header = ["מורה", "תאריך", "סיבה / תיאור", "שעות", "נצבר סה״כ", "יעד שנתי"];
+    const header = ["מורה", "תאריך", "סיבה / תיאור", "שעות", "נצבר פרטניות", "יעד שנתי", "שעות תומכות", "יעד תומכות"];
     const rows = [];
     [...teachers]
       .sort((a, b) => a.name.localeCompare(b.name, "he"))
       .forEach((t) => {
         const hist = [...(t.history || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
         if (!hist.length) {
-          rows.push([t.name, "", "לא דווחו שעות", 0, round2(t.accumulatedHours), t.requiredHours]);
+          rows.push([t.name, "", "לא דווחו שעות", 0, round2(t.accumulatedHours), t.requiredHours, round2(t.supportHours), SUPPORT_TARGET]);
           return;
         }
         hist.forEach((h, i) => {
@@ -88,6 +89,8 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
             t.name, h.date, h.reason, round2(h.hours),
             i === 0 ? round2(t.accumulatedHours) : "",
             i === 0 ? t.requiredHours : "",
+            i === 0 ? round2(t.supportHours) : "",
+            i === 0 ? SUPPORT_TARGET : "",
           ]);
         });
       });
@@ -169,6 +172,10 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
               <th className="px-5 py-3 text-start">נצבר</th>
               <th className="px-5 py-3 text-start">נותרו</th>
               <th className="px-5 py-3 w-48 text-start">התקדמות</th>
+              <th className="px-5 py-3 text-start">
+                <span className="inline-flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" />תומכות</span>
+                <span className="block font-normal text-slate-300 mt-0.5">מתוך {SUPPORT_TARGET}</span>
+              </th>
               <th className="px-5 py-3 text-end">פעולה</th>
             </tr>
           </thead>
@@ -202,6 +209,13 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
                       <ProgressBar value={pct} className="flex-1" />
                       <span className="text-xs font-semibold text-slate-500 w-9 text-end">{pct}%</span>
                     </div>
+                  </td>
+                  <td className="px-5 py-3.5 whitespace-nowrap">
+                    {t.supportHours >= SUPPORT_TARGET ? (
+                      <Badge tone="green"><CheckCircle2 className="w-3.5 h-3.5" /> {round2(t.supportHours)}</Badge>
+                    ) : (
+                      <span className="text-slate-600">{round2(t.supportHours)} / {SUPPORT_TARGET}</span>
+                    )}
                   </td>
                   <td className="px-5 py-3.5 text-end">
                     <div className="inline-flex items-center gap-2">
@@ -269,6 +283,10 @@ function TeachersTable({ teachers, onUpdateHours, onAdd, onBulkImport, onBulkUpd
                 </span>
               </div>
               <ProgressBar value={pct} />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">שעות תומכות</span>
+                <span className="text-sm text-slate-700">{round2(t.supportHours)} / {SUPPORT_TARGET}</span>
+              </div>
               <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" onClick={() => onUpdateHours(t)} icon={PencilLine} className="flex-1">עדכון שעות</Button>
                 <Button variant="secondary" size="sm" onClick={() => onOpenHistory(t)} icon={History} className="shrink-0" />

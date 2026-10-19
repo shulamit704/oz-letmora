@@ -5,7 +5,7 @@ const ADMIN_PASSWORD = "menahelet1234";
 
 const demoTeachers = [
   {
-    id: 1, name: "שרה לוין", password: "sarah123", frontalHours: 16, requiredHours: 120, accumulatedHours: 96,
+    id: 1, name: "שרה לוין", password: "sarah123", frontalHours: 16, requiredHours: 120, accumulatedHours: 96, supportHours: 0,
     history: [
       { id: 11, teacherId: 1, date: "2025-02-03", hours: 24, reason: "סדנת תכנון תכנית לימודים" },
       { id: 12, teacherId: 1, date: "2025-01-15", hours: 32, reason: "מקבץ הוראה רבעון ראשון" },

@@ -80,7 +80,10 @@ function mergeServerData(data) {
   });
   return (data.teachers || []).map((t) => ({
     ...t,
-    history: (byTeacher[t.id] || []).sort((a, b) => new Date(b.date) - new Date(a.date)),
+    supportHours: Number(t.supportHours) || 0,
+    history: (byTeacher[t.id] || [])
+      .map((h) => ({ ...h, kind: h.kind || "" }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date)),
   }));
 }
 

@@ -1,17 +1,18 @@
 import { useState } from "react";
-import { CalendarDays, History, PencilLine, Loader2, Trash2, Download, FileDown } from "lucide-react";
+import { CalendarDays, Clock, PencilLine, Loader2, Trash2, Download } from "lucide-react";
 import { DeleteHistoryModal } from "./DeleteHistoryModal.jsx";
 import { EditHistoryModal } from "./EditHistoryModal.jsx";
 import { printReport } from "../lib/report.js";
+import { isSupportRecord } from "../lib/supportHours.js";
 import { cn, downloadCSV, formatDate, formatHebrewDate, round2, todayISO } from "../lib/utils.js";
-import { Badge } from "../ui/Badge.jsx";
 import { Button } from "../ui/Button.jsx";
 import { Card } from "../ui/Card.jsx";
 
 /* ---------------------------- היסטוריית שעות ---------------------------- */
-/* onEdit / onDelete הם רשות. כשאינם מועברים — הטבלה מוצגת לקריאה בלבד. */
+/* onEdit / onDelete הם רשות. כשאינם מועברים — הטבלה מוצגת לקריאה בלבד.
+   emptyText / emptyHint — הטקסט כשאין רישומים. מסך המורה פונה אליה ישירות. */
 
-function HistoryTable({ teacher, history, onEdit, onDelete }) {
+function HistoryTable({ teacher, history, onEdit, onDelete, emptyText = "טרם נרשמו שעות.", emptyHint }) {
   const rows = history || teacher?.history || [];
   const sorted = [...rows].sort((a, b) => new Date(b.date) - new Date(a.date));
   const [editTarget, setEditTarget] = useState(null);
@@ -88,59 +89,72 @@ function HistoryTable({ teacher, history, onEdit, onDelete }) {
         <Loader2 className="w-3.5 h-3.5 animate-spin" /> נשמר…
       </span>
     ) : (
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800 tabular-nums">
         {h.saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
-        <Badge tone="blue">+{round2(h.hours)} שעות</Badge>
+        +{round2(h.hours)}
       </span>
     );
 
+  // סוג הרישום — פטרול נצבר לשעות התומכות, כל השאר לפרטניות.
+  const TypeCell = ({ h }) =>
+    isSupportRecord(h) ? (
+      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 whitespace-nowrap">תומכות</span>
+    ) : (
+      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 whitespace-nowrap">פרטניות</span>
+    );
+
+  const exportBtn = "min-h-11 text-[15px]";
+
   return (
-    <Card>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 pb-4 border-b border-slate-100">
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <History className="w-5 h-5 text-slate-400" />
-          <h3 className="font-semibold text-slate-900">היסטוריית שעות</h3>
-          {sorted.length > 0 && <Badge tone="slate">{sorted.length} רישומים · {total} שעות</Badge>}
+          <h2 className="text-lg font-semibold text-slate-900">היסטוריית דיווחים</h2>
+          {sorted.length > 0 && (
+            <span className="text-sm text-slate-500">· {sorted.length} רישומים · {total} שעות</span>
+          )}
         </div>
-        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+        <div className="flex items-center gap-2">
           <Button
-            variant="secondary" size="sm" icon={FileDown}
+            variant="secondary" icon={Download} className={exportBtn}
             onClick={() => printReport(teacher, `דוח שעות - ${teacher?.name || ""}`)}
-            disabled={!teacher}
-            title="הפקת דוח PDF"
+            disabled={!teacher || sorted.length === 0}
+            title={sorted.length === 0 ? "יהיה זמין לאחר הדיווח הראשון" : "הפקת דוח PDF"}
           >
-            PDF
+            ייצוא ל-PDF
           </Button>
           <Button
-            variant="secondary" size="sm" icon={Download}
+            variant="secondary" icon={Download} className={exportBtn}
             onClick={exportCSV} disabled={sorted.length === 0}
-            title="הורדת הדוח כקובץ Excel"
+            title={sorted.length === 0 ? "יהיה זמין לאחר הדיווח הראשון" : "הורדת הדוח כקובץ Excel"}
           >
-            Excel
+            ייצוא ל-Excel
           </Button>
         </div>
       </div>
 
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className={cn("overflow-x-auto", sorted.length > 0 && "hidden sm:block")}>
+        <table className="w-full min-w-[560px] text-[15px]">
           <thead>
-            <tr className="text-start text-xs font-semibold text-slate-400 tracking-wide border-b border-slate-100">
-              <th className="px-5 py-3 text-start">תאריך</th>
-              <th className="px-5 py-3 text-start">סיבה</th>
-              <th className="px-5 py-3 text-end">שעות שנוספו</th>
-              {editable && <th className="px-5 py-3 text-end w-24">פעולות</th>}
+            <tr className="bg-slate-50 text-sm font-bold text-slate-600">
+              <th className="px-6 py-3 text-start">תאריך</th>
+              <th className="px-6 py-3 text-start">סוג</th>
+              <th className="px-6 py-3 text-start">סיבה</th>
+              <th className="px-6 py-3 text-start">שעות</th>
+              {editable && <th className="px-6 py-3 text-start w-28">פעולות</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {sorted.map((h) => (
               <tr key={h.id} className="hover:bg-slate-50/60 transition-colors">
-                <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap align-top">
+                <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap align-top">
                   <DateCell iso={h.date} />
                 </td>
-                <td className="px-5 py-3.5 text-slate-700">{h.reason}</td>
-                <td className="px-5 py-3.5 text-end"><HoursCell h={h} /></td>
+                <td className="px-6 py-3.5 align-top"><TypeCell h={h} /></td>
+                <td className="px-6 py-3.5 text-slate-700 align-top">{h.reason}</td>
+                <td className="px-6 py-3.5 align-top"><HoursCell h={h} /></td>
                 {editable && (
-                  <td className="px-5 py-3.5 text-end"><RowActions h={h} /></td>
+                  <td className="px-6 py-3.5 align-top"><RowActions h={h} className="-ms-1.5" /></td>
                 )}
               </tr>
             ))}
@@ -152,7 +166,10 @@ function HistoryTable({ teacher, history, onEdit, onDelete }) {
         {sorted.map((h) => (
           <div key={h.id} className="p-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-800">{h.reason}</p>
+              <div className="flex items-center gap-2">
+                <TypeCell h={h} />
+                <p className="text-sm font-medium text-slate-800">{h.reason}</p>
+              </div>
               <div className="mt-1"><DateCell iso={h.date} small /></div>
               {editable && <RowActions h={h} className="mt-2 -ms-1.5" />}
             </div>
@@ -161,7 +178,15 @@ function HistoryTable({ teacher, history, onEdit, onDelete }) {
         ))}
       </div>
 
-      {sorted.length === 0 && <div className="py-12 text-center text-sm text-slate-400">טרם נרשמו שעות.</div>}
+      {sorted.length === 0 && (
+        <div className="px-6 py-12 flex flex-col items-center gap-3 text-center">
+          <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center">
+            <Clock className="w-[30px] h-[30px]" />
+          </div>
+          <span className="text-lg font-semibold text-slate-900">{emptyText}</span>
+          {emptyHint && <span className="text-[15px] text-slate-500 max-w-[380px]">{emptyHint}</span>}
+        </div>
+      )}
 
       {onEdit && (
         <EditHistoryModal

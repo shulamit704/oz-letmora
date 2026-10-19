@@ -1,28 +1,95 @@
 import { useState, useEffect } from "react";
-import { Plus, Clock, CalendarDays, History, PencilLine, AlertTriangle, Loader2, FileText } from "lucide-react";
+import { Plus, Clock, History, PencilLine, AlertTriangle, Loader2, FileText, Target } from "lucide-react";
 import { OTHER_TYPE, REPORT_GROUPS, REPORT_TYPES, findReportType, formulaLabel, rateLabel, unitHours } from "../../../lib/reportTypes.js";
-import { clampPct, formatHebrewDate, round2, todayISO } from "../../../lib/utils.js";
+import { clampPct, cn, round2, todayISO } from "../../../lib/utils.js";
 import { Button } from "../../../ui/Button.jsx";
+import { DateDisplay } from "../../../ui/DateDisplay.jsx";
 import { Input } from "../../../ui/Input.jsx";
 import { Modal } from "../../../ui/Modal.jsx";
 import { ProgressBar } from "../../../ui/Progress.jsx";
 import { Select } from "../../../ui/Select.jsx";
 
-function UpdateHoursModal({ open, onClose, teacher, onSave }) {
+/* הגדלת היעד הפרטני של מורה אחת — למנהלת בלבד. מוסיפים שעות ליעד השנתי
+   (מספר שלילי מפחית), והיעד החדש נשמר בגיליון Teachers. השעות שנצברו
+   וההיסטוריה אינן משתנות. */
+function TargetForm({ teacher, onSave, onClose }) {
+  const [add, setAdd] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const delta = round2(Number(add) || 0);
+  const current = round2(teacher.requiredHours);
+  const next = round2(current + delta);
+
+  const submit = async () => {
+    if (!delta) return setError("יש להזין מספר שעות להוספה.");
+    if (next <= 0) return setError("היעד החדש חייב להיות גדול מאפס.");
+    setError("");
+    setSubmitError("");
+    setSaving(true);
+    const res = await onSave(teacher.id, next);
+    setSaving(false);
+    if (res?.ok) onClose();
+    else if (res?.unsupported) setSubmitError("השרת אינו מכיר את פעולת העדכון. יש לפרוס גרסה חדשה של Code.gs.");
+    else setSubmitError(res?.error || "שמירה לגיליון נכשלה.");
+  };
+
+  return (
+    <>
+      <div className="rounded-xl bg-slate-50 p-4">
+        <div className="flex items-center justify-between text-sm mb-2">
+          <span className="text-slate-500">יעד שנתי נוכחי</span>
+          <span className="font-medium text-slate-700">{round2(teacher.accumulatedHours)} / {current} שעות</span>
+        </div>
+        <ProgressBar value={clampPct(teacher.accumulatedHours, delta ? next : current)} />
+        {delta !== 0 && next > 0 && (
+          <p className={cn("text-xs mt-2 font-medium", delta > 0 ? "text-blue-600" : "text-amber-600")}>
+            היעד החדש: {next} שעות ({delta > 0 ? `+${delta}` : delta})
+          </p>
+        )}
+      </div>
+
+      <Input
+        label="שעות להוספה ליעד הפרטני" icon={Target} type="number" step="0.5"
+        placeholder="לדוגמה: 10" value={add} error={error}
+        onChange={(e) => { setAdd(e.target.value); setError(""); }}
+      />
+      <p className="text-xs text-slate-500 -mt-2 ps-1">
+        מספר שלילי מפחית מהיעד. ⚠️ "חישוב מחדש לכולן" במסך המורים מחזיר את היעד לחישוב לפי המשרה.
+      </p>
+
+      {submitError && (
+        <p className="text-sm text-red-600 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> {submitError}</p>
+      )}
+      <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pt-3 pb-6 bg-white border-t border-slate-100 flex gap-3">
+        <Button variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>ביטול</Button>
+        <Button className="flex-1" onClick={submit} disabled={saving}>
+          {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> שומר…</> : <><Target className="w-4 h-4" /> עדכון היעד</>}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/* onUpdateTarget — רשות. כשמועבר (מסך המנהלת), החלון מציג שתי לשוניות:
+   דיווח שעות, והגדלת היעד הפרטני. במסך המורה — דיווח שעות בלבד. */
+function UpdateHoursModal({ open, onClose, teacher, onSave, onUpdateTarget }) {
+  const [mode, setMode] = useState("hours");
   const [typeKey, setTypeKey] = useState("");
   const [qty, setQty] = useState("1");
   const [hours, setHours] = useState("");   // בשימוש רק בדיווח "אחר"
   const [reason, setReason] = useState("");
   const [reasonTouched, setReasonTouched] = useState(false);
-  const [date, setDate] = useState(todayISO());
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (open) {
+      setMode("hours");
       setTypeKey(""); setQty("1"); setHours(""); setReason(""); setReasonTouched(false);
-      setDate(todayISO()); setErrors({}); setSubmitError(""); setSaving(false);
+      setErrors({}); setSubmitError(""); setSaving(false);
     }
   }, [open, teacher]);
 
@@ -56,13 +123,14 @@ function UpdateHoursModal({ open, onClose, teacher, onSave }) {
       e.qty = "יש להזין כמות חיובית.";
     }
     if (!reason.trim()) e.reason = "יש להוסיף סיבה קצרה לרישום.";
-    if (!date) e.date = "יש לבחור תאריך.";
     setErrors(e);
     if (Object.keys(e).length) return;
 
     setSubmitError("");
     setSaving(true);
-    const res = await onSave(teacher.id, { hours: totalHours, reason: reason.trim(), date });
+    // התאריך תמיד היום, ונקבע ברגע השמירה — חלון שנשאר פתוח אחרי חצות
+    // לא יירשם לאתמול.
+    const res = await onSave(teacher.id, { hours: totalHours, reason: reason.trim(), date: todayISO() });
     setSaving(false);
     if (res?.ok) onClose();
     else setSubmitError(res?.error || "שמירה לגיליון נכשלה.");
@@ -74,6 +142,26 @@ function UpdateHoursModal({ open, onClose, teacher, onSave }) {
   return (
     <Modal open={open} onClose={onClose} title="עדכון שעות" subtitle={teacher.name} icon={PencilLine}>
       <div className="space-y-4">
+        {onUpdateTarget && (
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100">
+            {[["hours", "דיווח שעות", Plus], ["target", "הגדלת היעד הפרטני", Target]].map(([key, label, Icon]) => (
+              <button
+                key={key} type="button" onClick={() => setMode(key)}
+                className={cn(
+                  "inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors",
+                  mode === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                <Icon className="w-4 h-4" /> {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {mode === "target" && onUpdateTarget ? (
+          <TargetForm teacher={teacher} onSave={onUpdateTarget} onClose={onClose} />
+        ) : (
+        <>
         <div className="rounded-xl bg-slate-50 p-4">
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-slate-500">נוכחי</span>
@@ -138,14 +226,8 @@ function UpdateHoursModal({ open, onClose, teacher, onSave }) {
           </>
         ) : null}
 
-        <div>
-          <Input label="תאריך" icon={CalendarDays} type="date" value={date} error={errors.date} onChange={(e) => setDate(e.target.value)} />
-          {/* בוחר התאריך של הדפדפן לועזי בלבד — כאן מוצג מה שנבחר בעברית,
-              כדי שאפשר יהיה לוודא שזה אכן היום הנכון. */}
-          {formatHebrewDate(date) && (
-            <p className="text-xs text-slate-500 mt-1.5 ps-1">{formatHebrewDate(date)}</p>
-          )}
-        </div>
+        {/* תאריך הדיווח — היום, לקריאה בלבד */}
+        <DateDisplay iso={todayISO()} note="היום" />
         <Input
           label="סיבה / תיאור" icon={History} placeholder="לדוגמה: סדנת תכנון לימודים"
           value={reason} error={errors.reason}
@@ -161,6 +243,8 @@ function UpdateHoursModal({ open, onClose, teacher, onSave }) {
             {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> שומר…</> : <><Plus className="w-4 h-4" /> הוספת רישום</>}
           </Button>
         </div>
+        </>
+        )}
       </div>
     </Modal>
   );

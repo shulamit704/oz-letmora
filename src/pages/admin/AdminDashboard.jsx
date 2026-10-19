@@ -73,7 +73,10 @@ function AdminDashboard({ teachers, loading, demoMode, demoManual, loadError, on
       <AddTeacherModal open={addOpen} onClose={() => setAddOpen(false)} onCreate={onAddTeacher} />
       <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} onCreate={onAddTeacher} onCreateMany={onAddTeachers} />
       <BulkUpdateHoursModal open={bulkUpdateOpen} onClose={() => setBulkUpdateOpen(false)} teachers={teachers} onUpdateMany={onUpdateTeachers} />
-      <UpdateHoursModal open={!!updateTarget} onClose={() => setUpdateTarget(null)} teacher={updateTarget} onSave={onUpdateHours} />
+      <UpdateHoursModal
+        open={!!updateTarget} onClose={() => setUpdateTarget(null)} teacher={updateTarget} onSave={onUpdateHours}
+        onUpdateTarget={(id, requiredHours) => onUpdateTeachers([{ id, requiredHours }])}
+      />
       <DeleteTeacherModal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} teacher={deleteTarget} onConfirm={onDeleteTeacher} />
       <TeacherHistoryModal
         open={!!historyTeacher} onClose={() => setHistoryTarget(null)} teacher={historyTeacher}
